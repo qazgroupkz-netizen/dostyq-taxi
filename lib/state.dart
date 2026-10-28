@@ -27,7 +27,14 @@ class AppState extends ChangeNotifier {
   void setDriverMode(bool v) { isDriverMode = v; notifyListeners(); }
   void setTheme(ThemeMode m)  { themeMode = m;   notifyListeners(); }
 
-  void setClientState(ClientState s) { clientState = s; notifyListeners(); }
+  // Когда вошли в текущее состояние — для вычисления ETA на карте
+  DateTime? stateEnteredAt;
+
+  void setClientState(ClientState s) {
+    clientState = s;
+    stateEnteredAt = DateTime.now();
+    notifyListeners();
+  }
   void setTariff(Tariff t)           { tariff = t;       notifyListeners(); }
   void setDestination(String d)      { destination = d;  notifyListeners(); }
   void setPayment(String p)          { paymentMethod = p; notifyListeners(); }

@@ -6,7 +6,11 @@ import '../theme.dart';
 // На этапе 4 заменится на настоящий flutter_map + OpenStreetMap
 
 class MockMap extends StatefulWidget {
-  const MockMap({super.key});
+  /// Подпись над точкой подачи, напр. «~3 мин» или «На месте»
+  final String? pickupLabel;
+  /// Подпись над точкой назначения, напр. «Приедете в 14:35»
+  final String? destLabel;
+  const MockMap({super.key, this.pickupLabel, this.destLabel});
   @override
   State<MockMap> createState() => _MockMapState();
 }
@@ -29,7 +33,12 @@ class _MockMapState extends State<MockMap> {
       onDoubleTap: () => setState(() => _pan = Offset.zero),
       child: SizedBox.expand(
         child: CustomPaint(
-          painter: _MapPainter(isDark: context.isDark, pan: _pan),
+          painter: _MapPainter(
+            isDark: context.isDark,
+            pan: _pan,
+            pickupLabel: widget.pickupLabel,
+            destLabel: widget.destLabel,
+          ),
         ),
       ),
     );
@@ -39,7 +48,14 @@ class _MockMapState extends State<MockMap> {
 class _MapPainter extends CustomPainter {
   final bool isDark;
   final Offset pan;
-  _MapPainter({required this.isDark, this.pan = Offset.zero});
+  final String? pickupLabel;
+  final String? destLabel;
+  _MapPainter({
+    required this.isDark,
+    this.pan = Offset.zero,
+    this.pickupLabel,
+    this.destLabel,
+  });
 
   @override
   void paint(Canvas canvas, Size sz) {
@@ -141,13 +157,23 @@ class _MapPainter extends CustomPainter {
     tp.paint(canvas,
         Offset(sz.width / 2 - tp.width / 2, sz.height * .62));
 
-    // Пин местоположения
-    _drawPin(canvas, Offset(sz.width * .52, sz.height * .49));
+    // Точка назначения (рисуем до пина подачи, чтобы пин был поверх)
+    if (destLabel != null) {
+      _drawDestPin(
+        canvas,
+        Offset(sz.width * .30, sz.height * .28),
+        destLabel!,
+      );
+    }
+
+    // Пин подачи с подписью
+    _drawPin(canvas, Offset(sz.width * .52, sz.height * .49),
+        label: pickupLabel);
 
     canvas.restore();
   }
 
-  void _drawPin(Canvas canvas, Offset center) {
+  void _drawPin(Canvas canvas, Offset center, {String? label}) {
     final paint = Paint();
     final taxi = isDark ? const Color(0xFF2DB896) : const Color(0xFF0E7C66);
 
@@ -173,10 +199,113 @@ class _MapPainter extends CustomPainter {
     canvas.drawCircle(center, 16,
         paint..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 3);
     canvas.drawCircle(center, 5, paint..color = Colors.white..style = PaintingStyle.fill);
+
+    // Пузырь с подписью над кругом
+    if (label != null) {
+      _drawBubble(canvas, Offset(center.dx, center.dy - 18), label);
+    }
+  }
+
+  // Точка назначения: зелёный квадрат на столбике + пузырь сверху
+  void _drawDestPin(Canvas canvas, Offset base, String label) {
+    final taxi = isDark ? const Color(0xFF2DB896) : const Color(0xFF0E7C66);
+    final dark = const Color(0xFF14171F);
+    final paint = Paint()..maskFilter = null;
+
+    // Тень под точкой
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(base.dx, base.dy + 2), width: 12, height: 5),
+      paint
+        ..color = Colors.black.withOpacity(.20)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+    );
+
+    // Столбик
+    canvas.drawLine(
+      Offset(base.dx, base.dy),
+      Offset(base.dx, base.dy - 30),
+      paint
+        ..color = dark
+        ..strokeWidth = 3
+        ..strokeCap = StrokeCap.round
+        ..style = PaintingStyle.stroke
+        ..maskFilter = null,
+    );
+
+    // Зелёный квадрат
+    final sq = Offset(base.dx, base.dy - 41);
+    final sqRect = Rect.fromCenter(center: sq, width: 22, height: 22);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(sqRect, const Radius.circular(6)),
+      paint..color = taxi..style = PaintingStyle.fill,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(sqRect, const Radius.circular(6)),
+      paint..color = dark..style = PaintingStyle.stroke..strokeWidth = 3,
+    );
+
+    // Пузырь над квадратом
+    _drawBubble(canvas, Offset(sq.dx, sq.dy - 13), label);
+  }
+
+  // Универсальный белый пузырь с тёмным текстом
+  void _drawBubble(Canvas canvas, Offset tip, String text) {
+    final bgColor = isDark ? const Color(0xFF181B21) : const Color(0xFFFFFFFF);
+    final inkColor = isDark ? const Color(0xFFF2F4F7) : const Color(0xFF14171F);
+
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: inkColor,
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    const hPad = 14.0;
+    const bubH = 30.0;
+    final bubW = tp.width + hPad * 2;
+    const gap = 8.0;
+
+    final bubTop  = tip.dy - gap - bubH;
+    final bubLeft = tip.dx - bubW / 2;
+
+    // Тень
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(bubLeft + 2, bubTop + 3, bubW, bubH),
+        const Radius.circular(15),
+      ),
+      Paint()
+        ..color = Colors.black.withOpacity(.15)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+    );
+
+    // Фон
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(bubLeft, bubTop, bubW, bubH),
+        const Radius.circular(15),
+      ),
+      Paint()..color = bgColor..maskFilter = null,
+    );
+
+    // Текст
+    tp.paint(
+      canvas,
+      Offset(tip.dx - tp.width / 2, bubTop + (bubH - tp.height) / 2),
+    );
   }
 
   @override
-  bool shouldRepaint(_MapPainter old) => old.isDark != isDark || old.pan != pan;
+  bool shouldRepaint(_MapPainter old) =>
+      old.isDark != isDark ||
+      old.pan != pan ||
+      old.pickupLabel != pickupLabel ||
+      old.destLabel != destLabel;
 }
 
 // Иконка казахского орнамента для логотипа

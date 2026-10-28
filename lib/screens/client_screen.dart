@@ -18,10 +18,66 @@ class ClientScreen extends StatefulWidget {
 
 class _ClientScreenState extends State<ClientScreen> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    // Перестраиваем каждые 30 с — чтобы ETA на карте обновлялся
+    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  static String _hm(DateTime dt) =>
+      '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+
+    // ── Вычисляем подписи для карты ─────────────────────────────
+    final now = DateTime.now();
+    final elapsed = state.stateEnteredAt != null
+        ? now.difference(state.stateEnteredAt!)
+        : Duration.zero;
+
+    String? pickupLabel;
+    String? destLabel;
+
+    switch (state.clientState) {
+      case ClientState.home:
+      case ClientState.seek:
+        pickupLabel = '~3 мин';
+        if (state.destination.isNotEmpty) {
+          destLabel = 'Приедёте в ${_hm(now.add(const Duration(minutes: 8)))}';
+        }
+      case ClientState.coming:
+        final eta = (3 - elapsed.inMinutes).clamp(0, 3);
+        pickupLabel = eta > 0 ? '~$eta мин' : 'Прибывает';
+        if (state.destination.isNotEmpty) {
+          destLabel = 'Приедёте в ${_hm(now.add(Duration(minutes: eta + 5)))}';
+        }
+      case ClientState.arrived:
+        pickupLabel = 'На месте';
+        if (state.destination.isNotEmpty) {
+          destLabel = 'Приедёте в ${_hm(now.add(const Duration(minutes: 5)))}';
+        }
+      case ClientState.ride:
+        final remaining = (5 - elapsed.inMinutes).clamp(0, 5);
+        if (state.destination.isNotEmpty) {
+          destLabel = 'Приедёте в ${_hm(now.add(Duration(minutes: remaining)))}';
+        }
+      case ClientState.rate:
+        break;
+    }
+    // ─────────────────────────────────────────────────────────────
 
     return Scaffold(
       key: _scaffoldKey,
@@ -29,7 +85,10 @@ class _ClientScreenState extends State<ClientScreen> {
       body: Stack(
         children: [
           // Карта на весь экран
-          const RepaintBoundary(child: MockMap()),
+          RepaintBoundary(child: MockMap(
+            pickupLabel: pickupLabel,
+            destLabel: destLabel,
+          )),
 
           // FAB — Меню
           Positioned(
