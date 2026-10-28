@@ -6,6 +6,7 @@ import '../theme.dart';
 import '../widgets/mock_map.dart';
 import '../widgets/car_svgs.dart';
 import 'search_screen.dart';
+import 'trip_screen.dart';
 
 // ════════════════════════════════════════════════════════════════
 //  Главный экран клиента
@@ -23,8 +24,8 @@ class _ClientScreenState extends State<ClientScreen> {
   @override
   void initState() {
     super.initState();
-    // Перестраиваем каждые 30 с — чтобы ETA на карте обновлялся
-    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+    // Перестраиваем каждые 3 с — ETA и позиция машины на карте
+    _ticker = Timer.periodic(const Duration(seconds: 3), (_) {
       if (mounted) setState(() {});
     });
   }
@@ -50,6 +51,8 @@ class _ClientScreenState extends State<ClientScreen> {
 
     String? pickupLabel;
     String? destLabel;
+    double? carFraction;
+    String? carPhase;
 
     switch (state.clientState) {
       case ClientState.home:
@@ -64,6 +67,8 @@ class _ClientScreenState extends State<ClientScreen> {
         if (state.destination.isNotEmpty) {
           destLabel = 'Приедёте в ${_hm(now.add(Duration(minutes: eta + 5)))}';
         }
+        carFraction = (elapsed.inSeconds / 180.0).clamp(0.0, 1.0);
+        carPhase = 'coming';
       case ClientState.arrived:
         pickupLabel = 'На месте';
         if (state.destination.isNotEmpty) {
@@ -74,6 +79,8 @@ class _ClientScreenState extends State<ClientScreen> {
         if (state.destination.isNotEmpty) {
           destLabel = 'Приедёте в ${_hm(now.add(Duration(minutes: remaining)))}';
         }
+        carFraction = (elapsed.inSeconds / 300.0).clamp(0.0, 1.0);
+        carPhase = 'ride';
       case ClientState.rate:
         break;
     }
@@ -88,6 +95,8 @@ class _ClientScreenState extends State<ClientScreen> {
           RepaintBoundary(child: MockMap(
             pickupLabel: pickupLabel,
             destLabel: destLabel,
+            carFraction: carFraction,
+            carPhase: carPhase,
           )),
 
           // FAB — Меню
@@ -217,7 +226,7 @@ class _ClientScreenState extends State<ClientScreen> {
 
   double _bottomSheetHeight(AppState state) {
     if (!state.sheetExpanded) {
-      return state.clientState == ClientState.home ? 130.0 : 56.0;
+      return state.clientState == ClientState.home ? 155.0 : 56.0;
     }
     switch (state.clientState) {
       case ClientState.home:    return 340;
@@ -282,18 +291,9 @@ class _BottomSheet extends StatelessWidget {
                 ),
               ),
             ),
-            // Панель — при свёрнутой home-шторке обрезаем до "Куда едем?"
+            // Панель
             if (!state.sheetExpanded && state.clientState == ClientState.home)
-              ClipRect(
-                child: SizedBox(
-                  height: 96,
-                  child: OverflowBox(
-                    alignment: Alignment.topCenter,
-                    maxHeight: 400,
-                    child: const _HomePanel(),
-                  ),
-                ),
-              )
+              const _CollapsedHomePanel()
             else if (state.sheetExpanded)
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 280),
@@ -467,30 +467,11 @@ class _HomePanel extends StatelessWidget {
             children: Tariff.values.map((t) => _TariffCard(
               tariff: t,
               selected: state.tariff == t,
-              onTap: () {
-                if (t == Tariff.delivery) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Оформление доставки появится на этапе 6'),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                  return;
-                }
-                if (t == Tariff.whole) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Рейсы в Ушарал появятся на этапе 6'),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                  return;
-                }
-                state.setTariff(t);
-              },
+              onTap: () => state.setTariff(t),
             )).toList(),
           ),
         ),
+
 
         // Оплата + Пожелания
         Padding(
@@ -517,34 +498,70 @@ class _HomePanel extends StatelessWidget {
           ),
         ),
 
-        // Кнопка «Заказать»
+        // Главная кнопка
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-          child: _CtaButton(
-            label: state.destination.isEmpty
-                ? 'Куда едем?'
-                : 'Заказать',
-            sub: state.destination.isEmpty ? null : state.tariffPrice,
-            enabled: true,
-            onTap: () {
-              if (state.destination.isEmpty) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                      builder: (_) => const SearchScreen(),
-                      fullscreenDialog: true),
-                );
-              } else {
-                state.setClientState(ClientState.seek);
-                Future.delayed(const Duration(seconds: 4), () {
-                  if (state.clientState == ClientState.seek) {
-                    state.setClientState(ClientState.coming);
-                  }
-                });
-              }
-            },
-          ),
+          child: _buildCtaButton(context, state),
         ),
       ],
+    );
+  }
+
+  Widget _buildCtaButton(BuildContext context, AppState state) {
+    // Рейсы Ушарал
+    if (state.tariff == Tariff.border) {
+      return _CtaButton(
+        label: 'Выбрать рейс',
+        sub: '5 000 ₸ / место',
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const TripScreen()),
+        ),
+      );
+    }
+    // Вся машина
+    if (state.tariff == Tariff.whole) {
+      return _CtaButton(
+        label: 'Выбрать время',
+        sub: '18 000 ₸',
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+              builder: (_) => const TripScreen(wholeCarMode: true)),
+        ),
+      );
+    }
+    // Доставка
+    if (state.tariff == Tariff.delivery) {
+      return _CtaButton(
+        label: 'Оформить доставку',
+        sub: '400 ₸',
+        onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Оформление доставки появится на этапе 6'),
+            duration: Duration(seconds: 2),
+          ),
+        ),
+      );
+    }
+    // Обычный заказ (local)
+    return _CtaButton(
+      label: state.destination.isEmpty ? 'Куда едем?' : 'Заказать',
+      sub: state.destination.isEmpty ? null : state.tariffPrice,
+      onTap: () {
+        if (state.destination.isEmpty) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+                builder: (_) => const SearchScreen(),
+                fullscreenDialog: true),
+          );
+        } else {
+          state.setClientState(ClientState.seek);
+          Future.delayed(const Duration(seconds: 4), () {
+            if (state.clientState == ClientState.seek) {
+              state.setClientState(ClientState.coming);
+            }
+          });
+        }
+      },
     );
   }
 
@@ -562,6 +579,115 @@ class _HomePanel extends StatelessWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => const _WishSheet(),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+//  Свёрнутая панель «Главная» — поле куда + цена тарифа
+// ════════════════════════════════════════════════════════════════
+class _CollapsedHomePanel extends StatelessWidget {
+  const _CollapsedHomePanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Поле «Куда едем?»
+          GestureDetector(
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                    builder: (_) => const SearchScreen(),
+                    fullscreenDialog: true),
+              );
+            },
+            child: Container(
+              height: 58,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: context.surface,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 12, height: 12,
+                    decoration: BoxDecoration(
+                      color: context.taxi,
+                      borderRadius: BorderRadius.circular(4),
+                      boxShadow: [BoxShadow(color: context.taxi.withOpacity(.3), blurRadius: 8)],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      state.destination.isEmpty ? 'Куда едем?' : state.destination,
+                      style: TextStyle(
+                        color: state.destination.isEmpty ? context.hint : context.ink,
+                        fontSize: 19,
+                        fontWeight: state.destination.isEmpty
+                            ? FontWeight.w400
+                            : FontWeight.w600,
+                        letterSpacing: -.02 * 19,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Icon(Icons.search_rounded, color: context.muted, size: 22),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Строка: тариф + цена слева, стрелка «развернуть» справа
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                decoration: BoxDecoration(
+                  color: context.taxiSft,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${state.tariffName} · ${state.tariffPrice}',
+                  style: TextStyle(
+                    color: context.taxi,
+                    fontSize: 14, fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: () => state.toggleSheet(),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: context.surface,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Text('Подробнее',
+                          style: TextStyle(
+                            color: context.muted,
+                            fontSize: 13, fontWeight: FontWeight.w600,
+                          )),
+                      const SizedBox(width: 4),
+                      Icon(Icons.keyboard_arrow_up_rounded,
+                          color: context.muted, size: 16),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

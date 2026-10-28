@@ -6,38 +6,50 @@ import '../theme.dart';
 // На этапе 4 заменится на настоящий flutter_map + OpenStreetMap
 
 class MockMap extends StatefulWidget {
-  /// Подпись над точкой подачи, напр. «~3 мин» или «На месте»
   final String? pickupLabel;
-  /// Подпись над точкой назначения, напр. «Приедете в 14:35»
   final String? destLabel;
-  const MockMap({super.key, this.pickupLabel, this.destLabel});
+  /// 0.0–1.0: прогресс движения машины (null = машина не едет)
+  final double? carFraction;
+  /// 'coming' = едет к подаче, 'ride' = везёт клиента
+  final String? carPhase;
+  const MockMap({super.key, this.pickupLabel, this.destLabel,
+      this.carFraction, this.carPhase});
   @override
   State<MockMap> createState() => _MockMapState();
 }
 
 class _MockMapState extends State<MockMap> {
-  Offset _pan = Offset.zero;
+  Offset _pan   = Offset.zero;
+  double _scale = 1.0;
+  double _baseScale = 1.0;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onPanUpdate: (d) {
+      onScaleStart: (d) {
+        _baseScale = _scale;
+      },
+      onScaleUpdate: (d) {
         setState(() {
+          _scale = (_baseScale * d.scale).clamp(0.5, 3.0);
           _pan = Offset(
-            (_pan.dx + d.delta.dx).clamp(-140.0, 140.0),
-            (_pan.dy + d.delta.dy).clamp(-140.0, 140.0),
+            (_pan.dx + d.focalPointDelta.dx).clamp(-200.0, 200.0),
+            (_pan.dy + d.focalPointDelta.dy).clamp(-200.0, 200.0),
           );
         });
       },
-      onDoubleTap: () => setState(() => _pan = Offset.zero),
+      onDoubleTap: () => setState(() { _pan = Offset.zero; _scale = 1.0; }),
       child: SizedBox.expand(
         child: CustomPaint(
           painter: _MapPainter(
             isDark: context.isDark,
             pan: _pan,
+            scale: _scale,
             pickupLabel: widget.pickupLabel,
             destLabel: widget.destLabel,
+            carFraction: widget.carFraction,
+            carPhase: widget.carPhase,
           ),
         ),
       ),
@@ -48,19 +60,28 @@ class _MockMapState extends State<MockMap> {
 class _MapPainter extends CustomPainter {
   final bool isDark;
   final Offset pan;
+  final double scale;
   final String? pickupLabel;
   final String? destLabel;
+  final double? carFraction;
+  final String? carPhase;
   _MapPainter({
     required this.isDark,
     this.pan = Offset.zero,
+    this.scale = 1.0,
     this.pickupLabel,
     this.destLabel,
+    this.carFraction,
+    this.carPhase,
   });
 
   @override
   void paint(Canvas canvas, Size sz) {
     canvas.save();
-    canvas.translate(pan.dx, pan.dy);
+    // Масштаб вокруг центра экрана, затем панорамирование
+    canvas.translate(sz.width / 2 + pan.dx, sz.height / 2 + pan.dy);
+    canvas.scale(scale);
+    canvas.translate(-sz.width / 2, -sz.height / 2);
 
     final bg      = isDark ? const Color(0xFF13161B) : const Color(0xFFEEF0EB);
     final field   = isDark ? const Color(0xFF141A16) : const Color(0xFFE4EBDD);
@@ -169,6 +190,77 @@ class _MapPainter extends CustomPainter {
     // Пин подачи с подписью
     _drawPin(canvas, Offset(sz.width * .52, sz.height * .49),
         label: pickupLabel);
+
+    // Машина (поверх всего)
+    if (carFraction != null && carPhase != null) {
+      _drawCar(canvas, sz);
+    }
+
+    canvas.restore();
+  }
+
+  void _drawCar(Canvas canvas, Size sz) {
+    final t = carFraction!.clamp(0.0, 1.0);
+    final Offset start, end;
+    if (carPhase == 'coming') {
+      start = Offset(sz.width * .83, sz.height * .13);
+      end   = Offset(sz.width * .52, sz.height * .49);
+    } else {
+      start = Offset(sz.width * .52, sz.height * .49);
+      end   = Offset(sz.width * .30, sz.height * .28);
+    }
+    final pos   = Offset.lerp(start, end, t)!;
+    final angle = math.atan2(end.dy - start.dy, end.dx - start.dx);
+    _drawCarMarker(canvas, pos, angle);
+  }
+
+  void _drawCarMarker(Canvas canvas, Offset pos, double angle) {
+    final taxi  = isDark ? const Color(0xFF2DB896) : const Color(0xFF0E7C66);
+    final white = Colors.white;
+    final paint = Paint()..maskFilter = null;
+
+    // Тень
+    canvas.drawOval(
+      Rect.fromCenter(center: pos.translate(0, 4), width: 26, height: 10),
+      paint
+        ..color = Colors.black.withOpacity(.22)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+    );
+
+    canvas.save();
+    canvas.translate(pos.dx, pos.dy);
+    // Машина рисуется «носом» вправо (0 градусов), поворачиваем по направлению
+    canvas.rotate(angle + math.pi / 2);
+
+    // Кузов
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset.zero, width: 18, height: 26),
+        const Radius.circular(5),
+      ),
+      paint..color = taxi..style = PaintingStyle.fill..maskFilter = null,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset.zero, width: 18, height: 26),
+        const Radius.circular(5),
+      ),
+      paint..color = white..style = PaintingStyle.stroke..strokeWidth = 2,
+    );
+
+    // Лобовое стекло
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(-5, -11, 10, 7),
+        const Radius.circular(2),
+      ),
+      paint..color = white.withOpacity(.55)..style = PaintingStyle.fill,
+    );
+
+    // Фары
+    canvas.drawCircle(const Offset(-5, -13), 2.5,
+        paint..color = const Color(0xFFFFF3C4)..style = PaintingStyle.fill);
+    canvas.drawCircle(const Offset(5, -13), 2.5, paint);
 
     canvas.restore();
   }
@@ -304,8 +396,11 @@ class _MapPainter extends CustomPainter {
   bool shouldRepaint(_MapPainter old) =>
       old.isDark != isDark ||
       old.pan != pan ||
+      old.scale != scale ||
       old.pickupLabel != pickupLabel ||
-      old.destLabel != destLabel;
+      old.destLabel != destLabel ||
+      old.carFraction != carFraction ||
+      old.carPhase != carPhase;
 }
 
 // Иконка казахского орнамента для логотипа
