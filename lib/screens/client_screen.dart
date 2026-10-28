@@ -4,6 +4,7 @@ import 'dart:async';
 import '../state.dart';
 import '../theme.dart';
 import '../widgets/mock_map.dart';
+import '../widgets/car_svgs.dart';
 import 'search_screen.dart';
 
 // ════════════════════════════════════════════════════════════════
@@ -28,7 +29,7 @@ class _ClientScreenState extends State<ClientScreen> {
       body: Stack(
         children: [
           // Карта на весь экран
-          const MockMap(),
+          const RepaintBoundary(child: MockMap()),
 
           // FAB — Меню
           Positioned(
@@ -339,6 +340,8 @@ class _HomePanel extends StatelessWidget {
           height: 40,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
+            primary: false,
+            physics: const ClampingScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 16),
             separatorBuilder: (_, __) => const SizedBox(width: 8),
             itemCount: _quickPlaces.length,
@@ -355,9 +358,11 @@ class _HomePanel extends StatelessWidget {
         // Тарифы
         const SizedBox(height: 8),
         SizedBox(
-          height: 126,
+          height: 130,
           child: ListView(
             scrollDirection: Axis.horizontal,
+            primary: false,
+            physics: const ClampingScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
             children: Tariff.values.map((t) => _TariffCard(
               tariff: t,
@@ -417,17 +422,25 @@ class _HomePanel extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
           child: _CtaButton(
             label: state.destination.isEmpty
-                ? 'Выберите маршрут'
+                ? 'Куда едем?'
                 : 'Заказать',
-            sub: state.tariffPrice,
-            enabled: state.destination.isNotEmpty,
+            sub: state.destination.isEmpty ? null : state.tariffPrice,
+            enabled: true,
             onTap: () {
-              state.setClientState(ClientState.seek);
-              Future.delayed(const Duration(seconds: 4), () {
-                if (state.clientState == ClientState.seek) {
-                  state.setClientState(ClientState.coming);
-                }
-              });
+              if (state.destination.isEmpty) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                      builder: (_) => const SearchScreen(),
+                      fullscreenDialog: true),
+                );
+              } else {
+                state.setClientState(ClientState.seek);
+                Future.delayed(const Duration(seconds: 4), () {
+                  if (state.clientState == ClientState.seek) {
+                    state.setClientState(ClientState.coming);
+                  }
+                });
+              }
             },
           ),
         ),
@@ -1262,29 +1275,30 @@ class _OptButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 50,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: context.surface,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: iconColor ?? context.ink, size: 22),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(label,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: context.ink,
-                    fontSize: 14, fontWeight: FontWeight.w600,
-                  )),
-            ),
-            Icon(Icons.chevron_right_rounded, color: context.muted, size: 16),
-          ],
+    return Material(
+      color: context.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          height: 50,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              Icon(icon, color: iconColor ?? context.ink, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: context.ink,
+                      fontSize: 14, fontWeight: FontWeight.w600,
+                    )),
+              ),
+              Icon(Icons.chevron_right_rounded, color: context.muted, size: 16),
+            ],
+          ),
         ),
       ),
     );
@@ -1298,33 +1312,37 @@ class _QuickChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 40,
-        padding: const EdgeInsets.only(left: 6, right: 14),
-        decoration: BoxDecoration(
-          color: context.paper,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: context.lineC),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 28, height: 28,
-              decoration: BoxDecoration(
-                color: context.surface, shape: BoxShape.circle),
-              alignment: Alignment.center,
-              child: Text(emoji, style: const TextStyle(fontSize: 14)),
-            ),
-            const SizedBox(width: 8),
-            Text(label,
-                style: TextStyle(
-                  color: context.ink,
-                  fontSize: 14, fontWeight: FontWeight.w600,
-                )),
-          ],
+    return Material(
+      color: context.paper,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          height: 40,
+          padding: const EdgeInsets.only(left: 6, right: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: context.lineC),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 28, height: 28,
+                decoration: BoxDecoration(
+                  color: context.surface, shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: Text(emoji, style: const TextStyle(fontSize: 14)),
+              ),
+              const SizedBox(width: 8),
+              Text(label,
+                  style: TextStyle(
+                    color: context.ink,
+                    fontSize: 14, fontWeight: FontWeight.w600,
+                  )),
+            ],
+          ),
         ),
       ),
     );
@@ -1341,48 +1359,73 @@ class _TariffCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final data = _tariffData[tariff]!;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 122,
-        margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
-        decoration: BoxDecoration(
-          color: selected ? context.paper : context.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? context.taxi : Colors.transparent,
-            width: 2,
-          ),
-          boxShadow: selected ? [
-            BoxShadow(
-              color: Colors.black.withOpacity(.08),
-              blurRadius: 10, offset: const Offset(0, 2),
-            ),
-          ] : null,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      width: 122,
+      margin: const EdgeInsets.only(right: 8),
+      decoration: BoxDecoration(
+        color: selected ? context.paper : context.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: selected ? context.taxi : Colors.transparent,
+          width: 2,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Иконка машины
-            _CarIcon(tariff: tariff),
-            const SizedBox(height: 4),
-            Text(data.$1,
-                style: TextStyle(
-                  color: context.ink,
-                  fontSize: 15, fontWeight: FontWeight.w700,
-                )),
-            const SizedBox(height: 1),
-            Text(data.$2,
-                style: TextStyle(
-                  color: context.ink,
-                  fontSize: 16, fontWeight: FontWeight.w800,
-                )),
-            Text(data.$3,
-                style: TextStyle(
-                  color: context.muted, fontSize: 12, fontWeight: FontWeight.w500)),
-          ],
+        boxShadow: selected ? [
+          BoxShadow(
+            color: Colors.black.withOpacity(.08),
+            blurRadius: 10, offset: const Offset(0, 2),
+          ),
+        ] : null,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          splashColor: context.taxi.withOpacity(.08),
+          highlightColor: context.taxi.withOpacity(.04),
+          child: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CarSvg(tariff: tariff),
+                    const SizedBox(height: 4),
+                    Text(data.$1,
+                        style: TextStyle(
+                          color: context.ink,
+                          fontSize: 15, fontWeight: FontWeight.w700,
+                        )),
+                    const SizedBox(height: 1),
+                    Text(data.$2,
+                        style: TextStyle(
+                          color: context.ink,
+                          fontSize: 16, fontWeight: FontWeight.w800,
+                        )),
+                    Text(data.$3,
+                        style: TextStyle(
+                          color: context.muted, fontSize: 12, fontWeight: FontWeight.w500)),
+                  ],
+                ),
+              ),
+              if (selected)
+                Positioned(
+                  top: 9, right: 9,
+                  child: Container(
+                    width: 20, height: 20,
+                    decoration: BoxDecoration(
+                      color: context.taxi,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.check_rounded,
+                        color: context.onTaxi, size: 12),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -1396,26 +1439,6 @@ const _tariffData = {
   Tariff.delivery: ('Доставка','400 ₸',    'по посёлку'),
 };
 
-class _CarIcon extends StatelessWidget {
-  final Tariff tariff;
-  const _CarIcon({required this.tariff});
-
-  @override
-  Widget build(BuildContext context) {
-    final String emoji;
-    switch (tariff) {
-      case Tariff.local:    emoji = '🚖'; break;
-      case Tariff.border:   emoji = '🚗'; break;
-      case Tariff.whole:    emoji = '🚙'; break;
-      case Tariff.delivery: emoji = '📦'; break;
-    }
-    return Container(
-      width: 100, height: 46,
-      alignment: Alignment.centerLeft,
-      child: Text(emoji, style: const TextStyle(fontSize: 32)),
-    );
-  }
-}
 
 // ════════════════════════════════════════════════════════════════
 //  Боковое меню
@@ -1697,31 +1720,35 @@ class _PayOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 56,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          color: selected ? context.taxiSft : context.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: selected ? context.jLine : Colors.transparent),
-        ),
-        child: Row(
-          children: [
-            Text(icon, style: const TextStyle(fontSize: 22)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(label,
-                  style: TextStyle(
-                    color: context.ink,
-                    fontSize: 16, fontWeight: FontWeight.w600,
-                  )),
-            ),
-            if (selected)
-              Icon(Icons.check_circle_rounded, color: context.taxi),
-          ],
+    return Material(
+      color: selected ? context.taxiSft : context.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          height: 56,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? context.jLine : Colors.transparent),
+          ),
+          child: Row(
+            children: [
+              Text(icon, style: const TextStyle(fontSize: 22)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(label,
+                    style: TextStyle(
+                      color: context.ink,
+                      fontSize: 16, fontWeight: FontWeight.w600,
+                    )),
+              ),
+              if (selected)
+                Icon(Icons.check_circle_rounded, color: context.taxi),
+            ],
+          ),
         ),
       ),
     );
