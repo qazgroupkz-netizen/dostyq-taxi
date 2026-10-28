@@ -22,22 +22,31 @@ class _MockMapState extends State<MockMap> {
   Offset _pan   = Offset.zero;
   double _scale = 1.0;
   double _baseScale = 1.0;
+  int _pointers = 0;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Listener(
+      onPointerDown: (_) => _pointers++,
+      onPointerUp:   (_) => _pointers--,
+      onPointerCancel: (_) => _pointers--,
+      child: GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onScaleStart: (d) {
-        _baseScale = _scale;
-      },
-      onScaleUpdate: (d) {
+      // Одним пальцем / мышью — пан
+      onPanUpdate: (d) {
+        if (_pointers >= 2) return; // двумя — зум, см. onScaleUpdate
         setState(() {
-          _scale = (_baseScale * d.scale).clamp(0.5, 3.0);
           _pan = Offset(
-            (_pan.dx + d.focalPointDelta.dx).clamp(-200.0, 200.0),
-            (_pan.dy + d.focalPointDelta.dy).clamp(-200.0, 200.0),
+            (_pan.dx + d.delta.dx).clamp(-220.0, 220.0),
+            (_pan.dy + d.delta.dy).clamp(-220.0, 220.0),
           );
         });
+      },
+      // Двумя пальцами — масштаб
+      onScaleStart: (d) => _baseScale = _scale,
+      onScaleUpdate: (d) {
+        if (d.pointerCount < 2) return;
+        setState(() => _scale = (_baseScale * d.scale).clamp(0.5, 3.0));
       },
       onDoubleTap: () => setState(() { _pan = Offset.zero; _scale = 1.0; }),
       child: SizedBox.expand(
@@ -53,7 +62,7 @@ class _MockMapState extends State<MockMap> {
           ),
         ),
       ),
-    );
+    ));
   }
 }
 
@@ -178,18 +187,21 @@ class _MapPainter extends CustomPainter {
     tp.paint(canvas,
         Offset(sz.width / 2 - tp.width / 2, sz.height * .62));
 
+    final pickupPt = Offset(sz.width * .52, sz.height * .49);
+    final destPt   = Offset(sz.width * .30, sz.height * .28);
+
+    // Зелёная линия маршрута (если есть назначение)
+    if (destLabel != null) {
+      _drawRouteLine(canvas, pickupPt, destPt, carFraction, carPhase);
+    }
+
     // Точка назначения (рисуем до пина подачи, чтобы пин был поверх)
     if (destLabel != null) {
-      _drawDestPin(
-        canvas,
-        Offset(sz.width * .30, sz.height * .28),
-        destLabel!,
-      );
+      _drawDestPin(canvas, destPt, destLabel!);
     }
 
     // Пин подачи с подписью
-    _drawPin(canvas, Offset(sz.width * .52, sz.height * .49),
-        label: pickupLabel);
+    _drawPin(canvas, pickupPt, label: pickupLabel);
 
     // Машина (поверх всего)
     if (carFraction != null && carPhase != null) {
@@ -197,6 +209,51 @@ class _MapPainter extends CustomPainter {
     }
 
     canvas.restore();
+  }
+
+  void _drawRouteLine(Canvas canvas, Offset pickup, Offset dest,
+      double? fraction, String? phase) {
+    final taxi = isDark ? const Color(0xFF2DB896) : const Color(0xFF0E7C66);
+
+    // Линия от точки подачи до назначения — пунктир
+    final paint = Paint()
+      ..color = taxi.withOpacity(.55)
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    const dash = 10.0;
+    const gap  = 7.0;
+    final dx = dest.dx - pickup.dx;
+    final dy = dest.dy - pickup.dy;
+    final len = math.sqrt(dx * dx + dy * dy);
+    if (len == 0) return;
+    final ux = dx / len;
+    final uy = dy / len;
+
+    double d = 0;
+    while (d < len) {
+      final dEnd = math.min(d + dash, len);
+      canvas.drawLine(
+        Offset(pickup.dx + ux * d,    pickup.dy + uy * d),
+        Offset(pickup.dx + ux * dEnd, pickup.dy + uy * dEnd),
+        paint,
+      );
+      d += dash + gap;
+    }
+
+    // Если машина едет — рисуем пройденный участок сплошной линией
+    if (fraction != null && phase == 'ride') {
+      final t = fraction.clamp(0.0, 1.0);
+      canvas.drawLine(
+        pickup,
+        Offset(pickup.dx + dx * t, pickup.dy + dy * t),
+        paint
+          ..color = taxi
+          ..strokeWidth = 5
+          ..strokeCap = StrokeCap.round,
+      );
+    }
   }
 
   void _drawCar(Canvas canvas, Size sz) {
@@ -221,46 +278,58 @@ class _MapPainter extends CustomPainter {
 
     // Тень
     canvas.drawOval(
-      Rect.fromCenter(center: pos.translate(0, 4), width: 26, height: 10),
+      Rect.fromCenter(center: pos.translate(0, 6), width: 38, height: 14),
       paint
-        ..color = Colors.black.withOpacity(.22)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+        ..color = Colors.black.withOpacity(.28)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
     );
 
     canvas.save();
     canvas.translate(pos.dx, pos.dy);
-    // Машина рисуется «носом» вправо (0 градусов), поворачиваем по направлению
     canvas.rotate(angle + math.pi / 2);
 
-    // Кузов
+    // Внешний круг-значок (как Google Maps)
+    canvas.drawCircle(Offset.zero, 22,
+        paint..color = white..style = PaintingStyle.fill..maskFilter = null);
+    canvas.drawCircle(Offset.zero, 22,
+        paint..color = taxi..style = PaintingStyle.stroke..strokeWidth = 3);
+
+    // Кузов машины
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromCenter(center: Offset.zero, width: 18, height: 26),
-        const Radius.circular(5),
+        Rect.fromCenter(center: Offset.zero, width: 22, height: 32),
+        const Radius.circular(6),
       ),
-      paint..color = taxi..style = PaintingStyle.fill..maskFilter = null,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(center: Offset.zero, width: 18, height: 26),
-        const Radius.circular(5),
-      ),
-      paint..color = white..style = PaintingStyle.stroke..strokeWidth = 2,
+      paint..color = taxi..style = PaintingStyle.fill,
     );
 
     // Лобовое стекло
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(-5, -11, 10, 7),
+        Rect.fromLTWH(-7, -14, 14, 9),
+        const Radius.circular(3),
+      ),
+      paint..color = white.withOpacity(.65)..style = PaintingStyle.fill,
+    );
+
+    // Заднее стекло
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(-6, 7, 12, 7),
         const Radius.circular(2),
       ),
-      paint..color = white.withOpacity(.55)..style = PaintingStyle.fill,
+      paint..color = white.withOpacity(.4)..style = PaintingStyle.fill,
     );
 
     // Фары
-    canvas.drawCircle(const Offset(-5, -13), 2.5,
-        paint..color = const Color(0xFFFFF3C4)..style = PaintingStyle.fill);
-    canvas.drawCircle(const Offset(5, -13), 2.5, paint);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(-9, -16, 6, 4), const Radius.circular(2)),
+      paint..color = const Color(0xFFFFF3C4)..style = PaintingStyle.fill,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(3, -16, 6, 4), const Radius.circular(2)),
+      paint,
+    );
 
     canvas.restore();
   }
