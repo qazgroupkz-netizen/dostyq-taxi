@@ -67,7 +67,7 @@ class _TaxiMapState extends State<TaxiMap> {
     final top = MediaQuery.of(context).padding.top;
     return Stack(
       children: [
-        FlutterMap(
+        RepaintBoundary(child: FlutterMap(
           mapController: _controller,
           options: MapOptions(
             initialCenter: widget.follow ?? widget.initialCenter,
@@ -93,6 +93,8 @@ class _TaxiMapState extends State<TaxiMap> {
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'kz.dostyq.taxi',
+              tileDisplay: const TileDisplay.instantaneous(),
+              keepBuffer: 4,
             ),
             if (widget.car != null && widget.pickup != null)
               PolylineLayer(polylines: [
@@ -125,7 +127,7 @@ class _TaxiMapState extends State<TaxiMap> {
                 ),
             ]),
           ],
-        ),
+        )),
         if (widget.centerPin)
           IgnorePointer(
             child: Center(

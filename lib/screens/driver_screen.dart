@@ -46,16 +46,20 @@ class _DriverBody extends StatelessWidget {
       body: Stack(
         children: [
           // Карта сзади
-          Opacity(
-            opacity: .45,
-            child: TaxiMap(
-              interactive: false,
-              follow: state.myLocation,
-              initialCenter: state.myLocation ?? dostykCenter,
-              me: state.myLocation,
-              pickup: state.driverOrder?.fromLat == null
-                  ? null
-                  : LatLng(state.driverOrder!.fromLat!, state.driverOrder!.fromLng!),
+          TaxiMap(
+            interactive: false,
+            follow: state.myLocation,
+            initialCenter: state.myLocation ?? dostykCenter,
+            me: state.myLocation,
+            pickup: state.driverOrder?.fromLat == null
+                ? null
+                : LatLng(state.driverOrder!.fromLat!, state.driverOrder!.fromLng!),
+          ),
+          // Затемнение вместо Opacity: дешевле, чем перерисовывать карту полупрозрачной.
+          const IgnorePointer(
+            child: ColoredBox(
+              color: Color(0x990F1115),
+              child: SizedBox.expand(),
             ),
           ),
 
