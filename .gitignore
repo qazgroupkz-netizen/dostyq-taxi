@@ -1,0 +1,31 @@
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+flutter_*.png
+
+# Android
+android/
+*.keystore
+*.jks
+local.properties
+
+# iOS
+ios/
+*.ipa
+
+# Dependencies
+pubspec.lock
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,83 @@
+name: Build APK
+
+# Запускается при каждом push в ветку main и вручную
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # 1. Скачиваем код
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. Устанавливаем Java 17
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      # 3. Устанавливаем Flutter (stable)
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+
+      # 4. Создаём структуру Android-проекта
+      #    (flutter create не перезаписывает наши lib/ и pubspec.yaml)
+      - name: Create Android project structure
+        run: |
+          flutter create \
+            --project-name dostyq_taxi \
+            --org kz.dostyq \
+            --platforms android \
+            .
+
+      # 5. Меняем applicationId на kz.dostyq.taxi
+      - name: Fix application ID
+        run: |
+          sed -i 's/applicationId = "kz.dostyq.dostyq_taxi"/applicationId = "kz.dostyq.taxi"/' android/app/build.gradle
+          sed -i 's/namespace "kz.dostyq.dostyq_taxi"/namespace "kz.dostyq.taxi"/' android/app/build.gradle
+          sed -i 's/kz.dostyq.dostyq_taxi/kz.dostyq.taxi/g' android/app/src/main/AndroidManifest.xml
+
+      # 6. Перемещаем MainActivity в нужный пакет
+      - name: Fix Kotlin package
+        run: |
+          mkdir -p android/app/src/main/kotlin/kz/dostyq/taxi
+          ORIG="android/app/src/main/kotlin/kz/dostyq/dostyq_taxi/MainActivity.kt"
+          DEST="android/app/src/main/kotlin/kz/dostyq/taxi/MainActivity.kt"
+          if [ -f "$ORIG" ]; then
+            sed 's/package kz.dostyq.dostyq_taxi/package kz.dostyq.taxi/' "$ORIG" > "$DEST"
+            rm -rf android/app/src/main/kotlin/kz/dostyq/dostyq_taxi
+          fi
+
+      # 7. Устанавливаем зависимости
+      - name: Flutter pub get
+        run: flutter pub get
+
+      # 8. Собираем APK
+      - name: Build APK
+        run: flutter build apk --release
+
+      # 9. Загружаем APK как артефакт (хранится 30 дней)
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: dostyq-taxi-v${{ github.run_number }}
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+
+      # 10. Показываем ссылку
+      - name: Print download info
+        run: |
+          echo "✅ APK собран успешно!"
+          echo "Скачать: Actions → этот запуск → раздел Artifacts"
+          echo "Файл: dostyq-taxi-v${{ github.run_number }}"
