@@ -15,6 +15,7 @@ class TaxiOrder {
   final String? driverId;
   final String? driverName;
   final bool clientComingOut;
+  final List<String> declinedBy;
   final DateTime? createdAt;
 
   const TaxiOrder({
@@ -32,6 +33,7 @@ class TaxiOrder {
     this.driverId,
     this.driverName,
     this.clientComingOut = false,
+    this.declinedBy = const [],
     this.createdAt,
   });
 }
@@ -58,6 +60,9 @@ abstract class OrderRepository {
   Future<bool> accept(String id, {required String driverId, required String driverName});
 
   Future<void> setStatus(String id, String status);
+
+  /// Водитель отказался от принятого заказа: заказ снова ищет машину, ему больше не предлагается.
+  Future<void> release(String id, String driverId);
 
   Future<void> update(String id, Map<String, Object?> fields);
 
@@ -94,6 +99,7 @@ class FirestoreOrderRepository implements OrderRepository {
       driverId: m['driverId'] as String?,
       driverName: m['driverName'] as String?,
       clientComingOut: m['clientComingOut'] as bool? ?? false,
+      declinedBy: (m['declinedBy'] as List?)?.whereType<String>().toList() ?? const [],
       createdAt: (m['createdAt'] as Timestamp?)?.toDate(),
     );
   }
@@ -165,6 +171,16 @@ class FirestoreOrderRepository implements OrderRepository {
   @override
   Future<void> setStatus(String id, String status) => _orders.doc(id).update({
         'status': status,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+  @override
+  Future<void> release(String id, String driverId) => _orders.doc(id).update({
+        'status': 'searching',
+        'driverId': FieldValue.delete(),
+        'driverName': FieldValue.delete(),
+        'clientComingOut': false,
+        'declinedBy': FieldValue.arrayUnion([driverId]),
         'updatedAt': FieldValue.serverTimestamp(),
       });
 

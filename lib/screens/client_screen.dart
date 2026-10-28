@@ -739,7 +739,8 @@ class _SeekPanelState extends State<_SeekPanel>
 
   @override
   Widget build(BuildContext context) {
-    final state = context.read<AppState>();
+    final state = context.watch<AppState>();
+    final declined = state.activeOrder?.declinedBy.isNotEmpty ?? false;
     return Column(
       key: const ValueKey('seek'),
       mainAxisSize: MainAxisSize.min,
@@ -782,7 +783,9 @@ class _SeekPanelState extends State<_SeekPanel>
                           fontSize: 22, fontWeight: FontWeight.w800,
                         )),
                     const SizedBox(height: 3),
-                    Text('Предлагаем заказ ближайшему водителю',
+                    Text(declined
+                            ? 'Водитель отказался. Ищем другого'
+                            : 'Предлагаем заказ ближайшему водителю',
                         style: TextStyle(color: context.muted, fontSize: 14)),
                   ],
                 ),

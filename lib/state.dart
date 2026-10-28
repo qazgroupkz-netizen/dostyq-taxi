@@ -196,6 +196,11 @@ class AppState extends ChangeNotifier {
       _clientOrderSub = null;
       _stopWatchingDriver();
     }
+    // Водитель отказался — заказ снова в поиске, следим уже за следующим водителем.
+    if (next == ClientState.seek && clientState != ClientState.seek) {
+      _stopWatchingDriver();
+      playAlert();
+    }
     if (next == ClientState.home) {
       activeOrderId = null;
       activeOrder = null;
@@ -244,7 +249,7 @@ class AppState extends ChangeNotifier {
   TaxiOrder? get offer {
     if (!isOnline || driverOrder != null) return null;
     for (final o in _searching) {
-      if (!_skipped.contains(o.id)) return o;
+      if (!_skipped.contains(o.id) && !o.declinedBy.contains(uid)) return o;
     }
     return null;
   }
@@ -343,7 +348,10 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     _driverOrderSub?.cancel();
     _driverOrderSub = orders.watch(o.id).listen((d) {
-      if (d == null || d.status == 'cancelled' || d.status == 'done') {
+      if (d == null ||
+          d.status == 'cancelled' ||
+          d.status == 'done' ||
+          d.driverId != uid) {
         if (d?.status == 'cancelled') playAlert();
         _simTimer?.cancel();
         _simTimer = null;
@@ -367,7 +375,9 @@ class AppState extends ChangeNotifier {
 
   Future<void> driverCancel() async {
     final o = driverOrder;
-    if (o != null) await orders.setStatus(o.id, 'cancelled');
+    if (o == null || uid == null) return;
+    _skipped.add(o.id);
+    await orders.release(o.id, uid!);
   }
 
   @override
