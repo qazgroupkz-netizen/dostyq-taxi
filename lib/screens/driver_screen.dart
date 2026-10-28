@@ -50,7 +50,8 @@ class _DriverBody extends StatelessWidget {
             interactive: false,
             follow: state.myLocation,
             initialCenter: state.myLocation ?? dostykCenter,
-            me: state.myLocation,
+            me: state.driverOrder == null ? state.myLocation : null,
+            car: state.driverOrder == null ? null : state.myLocation,
             pickup: state.driverOrder?.fromLat == null
                 ? null
                 : LatLng(state.driverOrder!.fromLat!, state.driverOrder!.fromLng!),
@@ -701,6 +702,30 @@ class _ActiveRideCard extends StatelessWidget {
                   color: Color(0xFF2DB896),
                   fontSize: 15, fontWeight: FontWeight.w700,
                 )),
+          ],
+          if (order.status == 'accepted' && order.fromLat != null) ...[
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: state.simulating ? state.stopSimulation : state.startSimulation,
+              child: Container(
+                height: 46,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1F232A),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFF2A2F37)),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  state.simulating
+                      ? '■  Остановить демо-поездку'
+                      : '▶  Демо: поехать к клиенту',
+                  style: const TextStyle(
+                    color: Color(0xFF7FDCC4),
+                    fontSize: 14, fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
           ],
           const SizedBox(height: 14),
           Row(

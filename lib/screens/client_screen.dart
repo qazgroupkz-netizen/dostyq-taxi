@@ -5,7 +5,7 @@ import 'dart:async';
 import '../state.dart';
 import '../theme.dart';
 import 'package:flutter_map/flutter_map.dart' show MapController, CameraFit;
-import 'package:latlong2/latlong.dart' show Distance;
+import 'package:latlong2/latlong.dart' show Distance, LatLng;
 import '../widgets/ornament_icon.dart';
 import '../widgets/taxi_map.dart';
 import '../widgets/car_svgs.dart';
@@ -25,6 +25,7 @@ class _ClientScreenState extends State<ClientScreen> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   final _map = MapController();
   String? _fittedOrderId;
+  LatLng? _fittedCar;
 
   @override
   void initState() {
@@ -58,8 +59,11 @@ class _ClientScreenState extends State<ClientScreen> {
   void _fitCarAndPickup(AppState state) {
     final car = state.driverLocation;
     final id = state.activeOrderId;
-    if (car == null || id == null || _fittedOrderId == id) return;
+    if (car == null || id == null) return;
+    final last = _fittedCar;
+    if (_fittedOrderId == id && last != null && Distance()(last, car) < 2000) return;
     _fittedOrderId = id;
+    _fittedCar = car;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _map.fitCamera(CameraFit.coordinates(

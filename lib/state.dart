@@ -284,7 +284,38 @@ class AppState extends ChangeNotifier {
     });
   }
 
+  // ─── Демо-поездка: водитель «едет» к клиенту без настоящего GPS ─────────
+  Timer? _simTimer;
+  bool get simulating => _simTimer != null;
+
+  void startSimulation() {
+    final o = driverOrder;
+    if (o == null || o.fromLat == null || uid == null) return;
+    final target = LatLng(o.fromLat!, o.fromLng!);
+    final d = Distance();
+    var pos = myLocation;
+    // Водитель далеко от Достыка — начинаем в 1,5 км от клиента.
+    if (pos == null || d(pos, target) > 3000) pos = d.offset(target, 1500, 45);
+    _simTimer?.cancel();
+    _simTimer = Timer.periodic(const Duration(seconds: 2), (t) {
+      final left = d(pos!, target);
+      pos = left <= 30 ? target : d.offset(pos!, 30, d.bearing(pos!, target));
+      myLocation = pos;
+      orders.updateDriverLocation(uid!, (lat: pos!.latitude, lng: pos!.longitude));
+      if (left <= 30) stopSimulation();
+      notifyListeners();
+    });
+    notifyListeners();
+  }
+
+  void stopSimulation() {
+    _simTimer?.cancel();
+    _simTimer = null;
+    notifyListeners();
+  }
+
   void _onGps(LatLng p) {
+    if (simulating) return;
     myLocation = p;
     notifyListeners();
     final now = DateTime.now();
@@ -311,6 +342,8 @@ class AppState extends ChangeNotifier {
     _driverOrderSub?.cancel();
     _driverOrderSub = orders.watch(o.id).listen((d) {
       if (d == null || d.status == 'cancelled' || d.status == 'done') {
+        _simTimer?.cancel();
+        _simTimer = null;
         driverOrder = null;
         _driverOrderSub?.cancel();
         _driverOrderSub = null;
@@ -342,6 +375,7 @@ class AppState extends ChangeNotifier {
     _driverOrderSub?.cancel();
     _driverLocSub?.cancel();
     _gpsSub?.cancel();
+    _simTimer?.cancel();
     super.dispose();
   }
 
