@@ -2,17 +2,35 @@ import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import '../theme.dart';
 
-// Имитация карты — нарисована через CustomPainter
+// Имитация карты — нарисована через CustomPainter, поддерживает перетаскивание
 // На этапе 4 заменится на настоящий flutter_map + OpenStreetMap
 
-class MockMap extends StatelessWidget {
+class MockMap extends StatefulWidget {
   const MockMap({super.key});
+  @override
+  State<MockMap> createState() => _MockMapState();
+}
+
+class _MockMapState extends State<MockMap> {
+  Offset _pan = Offset.zero;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.expand(
-      child: CustomPaint(
-        painter: _MapPainter(isDark: context.isDark),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onPanUpdate: (d) {
+        setState(() {
+          _pan = Offset(
+            (_pan.dx + d.delta.dx).clamp(-140.0, 140.0),
+            (_pan.dy + d.delta.dy).clamp(-140.0, 140.0),
+          );
+        });
+      },
+      onDoubleTap: () => setState(() => _pan = Offset.zero),
+      child: SizedBox.expand(
+        child: CustomPaint(
+          painter: _MapPainter(isDark: context.isDark, pan: _pan),
+        ),
       ),
     );
   }
@@ -20,10 +38,14 @@ class MockMap extends StatelessWidget {
 
 class _MapPainter extends CustomPainter {
   final bool isDark;
-  _MapPainter({required this.isDark});
+  final Offset pan;
+  _MapPainter({required this.isDark, this.pan = Offset.zero});
 
   @override
   void paint(Canvas canvas, Size sz) {
+    canvas.save();
+    canvas.translate(pan.dx, pan.dy);
+
     final bg      = isDark ? const Color(0xFF13161B) : const Color(0xFFEEF0EB);
     final field   = isDark ? const Color(0xFF141A16) : const Color(0xFFE4EBDD);
     final road    = isDark ? const Color(0xFF2B3139) : const Color(0xFFFFFFFF);
@@ -121,6 +143,8 @@ class _MapPainter extends CustomPainter {
 
     // Пин местоположения
     _drawPin(canvas, Offset(sz.width * .52, sz.height * .49));
+
+    canvas.restore();
   }
 
   void _drawPin(Canvas canvas, Offset center) {
@@ -152,7 +176,7 @@ class _MapPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_MapPainter old) => old.isDark != isDark;
+  bool shouldRepaint(_MapPainter old) => old.isDark != isDark || old.pan != pan;
 }
 
 // Иконка казахского орнамента для логотипа

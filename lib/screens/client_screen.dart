@@ -124,14 +124,25 @@ class _ClientScreenState extends State<ClientScreen> {
             ),
           ),
 
-          // FAB — Моё местоположение
+          // FAB — Свернуть/развернуть шторку
           Positioned(
             right: 14,
             bottom: _bottomSheetHeight(state) + 14,
-            child: _MapFab(
-              icon: Icons.navigation_rounded,
-              color: context.taxi,
-              onTap: () {},
+            child: Column(
+              children: [
+                _MapFab(
+                  icon: state.sheetExpanded
+                      ? Icons.keyboard_arrow_down_rounded
+                      : Icons.keyboard_arrow_up_rounded,
+                  onTap: () => state.toggleSheet(),
+                ),
+                const SizedBox(height: 8),
+                _MapFab(
+                  icon: Icons.my_location_rounded,
+                  color: context.taxi,
+                  onTap: () {},
+                ),
+              ],
             ),
           ),
 
@@ -146,6 +157,7 @@ class _ClientScreenState extends State<ClientScreen> {
   }
 
   double _bottomSheetHeight(AppState state) {
+    if (!state.sheetExpanded) return 56;
     switch (state.clientState) {
       case ClientState.home:    return 340;
       case ClientState.seek:    return 230;
@@ -164,45 +176,61 @@ class _BottomSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 320),
-      curve: Curves.easeOut,
-      decoration: BoxDecoration(
-        color: context.paper,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(.2),
-            blurRadius: 40, offset: const Offset(0, -12),
-          ),
-        ],
-      ),
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).padding.bottom + 16,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Ручка
-          Padding(
-            padding: const EdgeInsets.fromLTRB(0, 8, 0, 0),
-            child: Container(
-              width: 40, height: 5,
-              decoration: BoxDecoration(
-                color: context.line2C,
-                borderRadius: BorderRadius.circular(3),
+    return GestureDetector(
+      onVerticalDragEnd: (d) {
+        if (d.primaryVelocity != null) {
+          if (d.primaryVelocity! > 300) state.toggleSheet();   // свайп вниз
+          if (d.primaryVelocity! < -300) {                      // свайп вверх
+            if (!state.sheetExpanded) state.toggleSheet();
+          }
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOut,
+        decoration: BoxDecoration(
+          color: context.paper,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(.2),
+              blurRadius: 40, offset: const Offset(0, -12),
+            ),
+          ],
+        ),
+        padding: EdgeInsets.only(
+          bottom: state.sheetExpanded
+              ? MediaQuery.of(context).padding.bottom + 16
+              : 0,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Ручка — нажатие тоже сворачивает/разворачивает
+            GestureDetector(
+              onTap: () => state.toggleSheet(),
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(0, 10, 0, 8),
+                child: Container(
+                  width: 40, height: 5,
+                  decoration: BoxDecoration(
+                    color: context.line2C,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          // Панель
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 280),
-            switchInCurve: Curves.easeOut,
-            switchOutCurve: Curves.easeIn,
-            child: _panelForState(state.clientState),
-          ),
-        ],
+            // Панель
+            if (state.sheetExpanded)
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 280),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                child: _panelForState(state.clientState),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -1454,8 +1482,9 @@ class _SideDrawer extends StatelessWidget {
     return Drawer(
       child: Column(
         children: [
-          // Шапка
+          // ── Шапка: тёмный фон, аватар, имя, телефон
           Container(
+            width: double.infinity,
             padding: EdgeInsets.fromLTRB(
                 20, MediaQuery.of(context).padding.top + 26, 20, 20),
             color: const Color(0xFF14171F),
@@ -1464,10 +1493,10 @@ class _SideDrawer extends StatelessWidget {
                 Container(
                   width: 50, height: 50,
                   decoration: const BoxDecoration(
-                    color: Color(0xFF1F232A),
+                    color: Color(0x29127FDCC4),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.person_rounded,
+                  child: const Icon(Icons.person_outline_rounded,
                       color: Color(0xFF7FDCC4), size: 26),
                 ),
                 const SizedBox(width: 12),
@@ -1475,12 +1504,12 @@ class _SideDrawer extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Аккаунт',
+                      const Text('Гульнар',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: Color(0xFFF2F4F7),
                             fontSize: 17, fontWeight: FontWeight.w700,
                           )),
-                      const Text('+7 (777) XXX-XX-XX',
+                      const Text('+7 7•• ••• •• 21',
                           style: TextStyle(
                             color: Color(0xFFA3ABB6), fontSize: 13)),
                     ],
@@ -1490,79 +1519,112 @@ class _SideDrawer extends StatelessWidget {
             ),
           ),
 
+          // ── Пункты меню
           Expanded(
             child: ListView(
-              padding: EdgeInsets.zero,
+              padding: const EdgeInsets.symmetric(vertical: 10),
               children: [
                 _DrawerItem(
-                  icon: Icons.receipt_long_rounded,
+                  icon: Icons.access_time_outlined,
                   label: 'Мои поездки',
                   onTap: onClose,
                 ),
                 _DrawerItem(
-                  icon: Icons.local_offer_outlined,
-                  label: 'Акции',
+                  icon: Icons.domain_outlined,
+                  label: 'Межгород · Ушарал',
                   onTap: onClose,
                 ),
                 _DrawerItem(
-                  icon: Icons.support_agent_rounded,
-                  label: 'Поддержка',
+                  icon: Icons.inventory_2_outlined,
+                  label: 'Доставка',
                   onTap: onClose,
                 ),
-                const Divider(),
-                // Переключатель режима водителя
                 _DrawerItem(
-                  icon: Icons.drive_eta_rounded,
-                  label: state.isDriverMode
-                      ? 'Режим клиента'
-                      : 'Я водитель',
+                  icon: Icons.drive_eta_outlined,
+                  label: 'Режим водителя',
+                  badge: 'демо',
                   onTap: () {
                     state.setDriverMode(!state.isDriverMode);
                     onClose();
                   },
                 ),
+                _DrawerItem(
+                  icon: Icons.headset_outlined,
+                  label: 'Поддержка',
+                  onTap: onClose,
+                ),
               ],
             ),
           ),
 
-          // Переключатель темы
+          // ── Блок темы + демо-примечание
           Padding(
             padding: EdgeInsets.fromLTRB(
-                16, 8, 16,
+                16, 0, 16,
                 MediaQuery.of(context).padding.bottom + 14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text('ТЕМА',
-                      style: TextStyle(
-                        color: context.taxi,
-                        fontSize: 12, fontWeight: FontWeight.w700,
-                        letterSpacing: .08 * 12,
-                      )),
-                ),
+                // Коробка темы
                 Container(
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: context.paper,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: context.lineC),
+                    color: context.surface,
+                    borderRadius: BorderRadius.circular(18),
                   ),
-                  padding: const EdgeInsets.all(4),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _ThemeBtn(label: '☀️ Светлая',
-                          selected: state.themeMode == ThemeMode.light,
-                          onTap: () => state.setTheme(ThemeMode.light)),
-                      _ThemeBtn(label: '🌙 Тёмная',
-                          selected: state.themeMode == ThemeMode.dark,
-                          onTap: () => state.setTheme(ThemeMode.dark)),
-                      _ThemeBtn(label: '⚙️ Авто',
-                          selected: state.themeMode == ThemeMode.system,
-                          onTap: () => state.setTheme(ThemeMode.system)),
+                      Text('ТЕМА ОФОРМЛЕНИЯ',
+                          style: TextStyle(
+                            color: context.taxi,
+                            fontSize: 12, fontWeight: FontWeight.w700,
+                            letterSpacing: .08 * 12,
+                          )),
+                      const SizedBox(height: 10),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: context.paper,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: context.lineC),
+                        ),
+                        padding: const EdgeInsets.all(4),
+                        child: Row(
+                          children: [
+                            _ThemeBtn(
+                                icon: Icons.brightness_auto_outlined,
+                                label: 'Авто',
+                                selected: state.themeMode == ThemeMode.system,
+                                onTap: () => state.setTheme(ThemeMode.system)),
+                            _ThemeBtn(
+                                icon: Icons.wb_sunny_outlined,
+                                label: 'Светлая',
+                                selected: state.themeMode == ThemeMode.light,
+                                onTap: () => state.setTheme(ThemeMode.light)),
+                            _ThemeBtn(
+                                icon: Icons.nights_stay_outlined,
+                                label: 'Тёмная',
+                                selected: state.themeMode == ThemeMode.dark,
+                                onTap: () => state.setTheme(ThemeMode.dark)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('Авто: как на телефоне — днём светлая, ночью тёмная',
+                          style: TextStyle(
+                            color: context.muted,
+                            fontSize: 12.5, height: 1.4,
+                          )),
                     ],
                   ),
                 ),
+                const SizedBox(height: 12),
+                // Демо-примечание
+                Text('Демо-прототип. Имена, номера машин и цены — примеры.',
+                    style: TextStyle(
+                      color: context.taxi,
+                      fontSize: 12, height: 1.5,
+                    )),
               ],
             ),
           ),
@@ -1575,55 +1637,108 @@ class _SideDrawer extends StatelessWidget {
 class _DrawerItem extends StatelessWidget {
   final IconData icon;
   final String label;
+  final String? badge;
   final VoidCallback onTap;
-  const _DrawerItem({required this.icon, required this.label, required this.onTap});
+  const _DrawerItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.badge,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: Container(
-        width: 38, height: 38,
-        decoration: BoxDecoration(
-          color: context.surface,
-          borderRadius: BorderRadius.circular(12),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 56),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
+          child: Row(
+            children: [
+              Container(
+                width: 38, height: 38,
+                decoration: BoxDecoration(
+                  color: context.surface,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: context.ink, size: 20),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(label,
+                    style: TextStyle(
+                      color: context.ink,
+                      fontSize: 16, fontWeight: FontWeight.w600,
+                    )),
+              ),
+              if (badge != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: context.taxiSft,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(badge!,
+                      style: TextStyle(
+                        color: context.taxi,
+                        fontSize: 11.5, fontWeight: FontWeight.w700,
+                      )),
+                ),
+              ],
+            ],
+          ),
         ),
-        child: Icon(icon, color: context.ink, size: 20),
       ),
-      title: Text(label,
-          style: TextStyle(
-            color: context.ink,
-            fontSize: 16, fontWeight: FontWeight.w600,
-          )),
-      onTap: onTap,
     );
   }
 }
 
 class _ThemeBtn extends StatelessWidget {
+  final IconData icon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  const _ThemeBtn({required this.label, required this.selected, required this.onTap});
+  const _ThemeBtn({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          height: 58,
-          decoration: BoxDecoration(
-            color: selected ? context.taxi : Colors.transparent,
-            borderRadius: BorderRadius.circular(11),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(11),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            height: 58,
+            decoration: BoxDecoration(
+              color: selected ? context.taxi : Colors.transparent,
+              borderRadius: BorderRadius.circular(11),
+            ),
+            alignment: Alignment.center,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon,
+                    size: 20,
+                    color: selected ? context.onTaxi : context.muted),
+                const SizedBox(height: 4),
+                Text(label,
+                    style: TextStyle(
+                      color: selected ? context.onTaxi : context.muted,
+                      fontSize: 13, fontWeight: FontWeight.w600,
+                    )),
+              ],
+            ),
           ),
-          alignment: Alignment.center,
-          child: Text(label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: selected ? context.onTaxi : context.muted,
-                fontSize: 12, fontWeight: FontWeight.w600,
-              )),
         ),
       ),
     );

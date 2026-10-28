@@ -15,6 +15,9 @@ class AppState extends ChangeNotifier {
   String destination = '';
   String paymentMethod = 'cash'; // cash | kaspi
 
+  // ─── UI ─────────────────────────────────────────────────────────────────
+  bool sheetExpanded = true;
+
   // ─── Водитель ────────────────────────────────────────────────────────────
   DriverState driverState = DriverState.waiting;
   bool isOnline = true;
@@ -30,6 +33,7 @@ class AppState extends ChangeNotifier {
 
   void setDriverState(DriverState s) { driverState = s; notifyListeners(); }
   void toggleOnline() { isOnline = !isOnline; notifyListeners(); }
+  void toggleSheet()  { sheetExpanded = !sheetExpanded; notifyListeners(); }
 
   // ─── Геттеры ─────────────────────────────────────────────────────────────
   String get tariffName {
