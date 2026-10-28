@@ -13,6 +13,7 @@ class AppState extends ChangeNotifier {
   ClientState clientState = ClientState.home;
   Tariff tariff = Tariff.local;
   String destination = '';
+  String fromAddress = 'ул. Молдагуловой';
   String paymentMethod = 'cash'; // cash | kaspi
 
   // ─── UI ─────────────────────────────────────────────────────────────────
@@ -39,7 +40,7 @@ class AppState extends ChangeNotifier {
   String get tariffName {
     switch (tariff) {
       case Tariff.local:    return 'Посёлок';
-      case Tariff.border:   return 'КПП';
+      case Tariff.border:   return 'Ушарал';
       case Tariff.whole:    return 'Вся машина';
       case Tariff.delivery: return 'Доставка';
     }
@@ -48,7 +49,7 @@ class AppState extends ChangeNotifier {
   String get tariffPrice {
     switch (tariff) {
       case Tariff.local:    return '500 ₸';
-      case Tariff.border:   return '2 000 ₸';
+      case Tariff.border:   return '5 000 ₸';
       case Tariff.whole:    return '18 000 ₸';
       case Tariff.delivery: return '400 ₸';
     }
@@ -57,7 +58,7 @@ class AppState extends ChangeNotifier {
   int get tariffPriceInt {
     switch (tariff) {
       case Tariff.local:    return 500;
-      case Tariff.border:   return 2000;
+      case Tariff.border:   return 5000;
       case Tariff.whole:    return 18000;
       case Tariff.delivery: return 400;
     }
@@ -90,12 +91,12 @@ const mockDriver = MockDriver(
 );
 
 const mockPlaces = [
-  ('Больница', 'Ул. Молдагуловой, 14',   '🏥'),
-  ('Рынок',    'Центральный рынок',       '🛒'),
-  ('Школа №1', 'Ул. Достык, 1',          '🏫'),
-  ('Мечеть',   'Ул. Молдагуловой, 32',   '🕌'),
-  ('КПП',      'Граница (2 000 ₸)',       '🛃'),
-  ('Почта',    'Ул. Сейткали',           '📬'),
-  ('Аптека',   'Ул. Молдагуловой, 8',    '💊'),
-  ('Детсад',   'Ул. Достык, 5',          '🧒'),
+  ('Больница',  'Ул. Молдагуловой, 14',  Icons.add_circle_outline,       Color(0xFFE5484D)),
+  ('Рынок',     'Центральный рынок',     Icons.shopping_bag_outlined,    Color(0xFF13A35A)),
+  ('Школа №1',  'Ул. Достык, 1',        Icons.school_outlined,          Color(0xFFD97A00)),
+  ('Мечеть',    'Ул. Молдагуловой, 32', Icons.mosque,                   Color(0xFF6E56CF)),
+  ('КПП',       'Граница',              Icons.security,                 Color(0xFF0B7A75)),
+  ('Почта',     'Ул. Сейткали',         Icons.mail_outline,             Color(0xFF4A5160)),
+  ('Аптека',    'Ул. Молдагуловой, 8',  Icons.local_pharmacy_outlined,  Color(0xFF13A35A)),
+  ('Детсад',    'Ул. Достык, 5',        Icons.child_care,               Color(0xFFD97A00)),
 ];

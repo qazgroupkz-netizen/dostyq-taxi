@@ -157,7 +157,9 @@ class _ClientScreenState extends State<ClientScreen> {
   }
 
   double _bottomSheetHeight(AppState state) {
-    if (!state.sheetExpanded) return 56;
+    if (!state.sheetExpanded) {
+      return state.clientState == ClientState.home ? 130.0 : 56.0;
+    }
     switch (state.clientState) {
       case ClientState.home:    return 340;
       case ClientState.seek:    return 230;
@@ -221,8 +223,19 @@ class _BottomSheet extends StatelessWidget {
                 ),
               ),
             ),
-            // Панель
-            if (state.sheetExpanded)
+            // Панель — при свёрнутой home-шторке обрезаем до "Куда едем?"
+            if (!state.sheetExpanded && state.clientState == ClientState.home)
+              ClipRect(
+                child: SizedBox(
+                  height: 96,
+                  child: OverflowBox(
+                    alignment: Alignment.topCenter,
+                    maxHeight: 400,
+                    child: const _HomePanel(),
+                  ),
+                ),
+              )
+            else if (state.sheetExpanded)
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 280),
                 switchInCurve: Curves.easeOut,
@@ -372,11 +385,11 @@ class _HomePanel extends StatelessWidget {
             physics: const ClampingScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 16),
             separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemCount: _quickPlaces.length,
+            itemCount: _quickPlacesData.length,
             itemBuilder: (_, i) {
-              final (label, emoji) = _quickPlaces[i];
+              final (label, color, icon) = _quickPlacesData[i];
               return _QuickChip(
-                label: label, emoji: emoji,
+                label: label, color: color, icon: icon,
                 onTap: () => state.setDestination(label),
               );
             },
@@ -1007,7 +1020,7 @@ class _TripMini extends StatelessWidget {
         ),
         child: Column(
           children: [
-            _TripRow(isDot: true, label: 'ул. Молдагуловой'),
+            _TripRow(isDot: true, label: state.fromAddress),
             Divider(height: 1, indent: 40, color: context.lineC),
             _TripRow(isDot: false,
                 label: state.destination.isEmpty
@@ -1334,9 +1347,14 @@ class _OptButton extends StatelessWidget {
 }
 
 class _QuickChip extends StatelessWidget {
-  final String label, emoji;
+  final String label;
+  final Color color;
+  final IconData icon;
   final VoidCallback onTap;
-  const _QuickChip({required this.label, required this.emoji, required this.onTap});
+  const _QuickChip({
+    required this.label, required this.color,
+    required this.icon, required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1359,9 +1377,9 @@ class _QuickChip extends StatelessWidget {
               Container(
                 width: 28, height: 28,
                 decoration: BoxDecoration(
-                  color: context.surface, shape: BoxShape.circle),
+                  color: color.withOpacity(.15), shape: BoxShape.circle),
                 alignment: Alignment.center,
-                child: Text(emoji, style: const TextStyle(fontSize: 14)),
+                child: Icon(icon, color: color, size: 15),
               ),
               const SizedBox(width: 8),
               Text(label,
@@ -1461,10 +1479,10 @@ class _TariffCard extends StatelessWidget {
 }
 
 const _tariffData = {
-  Tariff.local:    ('Посёлок', '500 ₸',    '≈ 3 мин'),
-  Tariff.border:   ('КПП',     '2 000 ₸',  'до границы'),
-  Tariff.whole:    ('Ушарал',  '18 000 ₸', 'вся машина'),
-  Tariff.delivery: ('Доставка','400 ₸',    'по посёлку'),
+  Tariff.local:    ('Посёлок',    '500 ₸',    '≈ 3 мин'),
+  Tariff.border:   ('Ушарал',     '5 000 ₸',  'за место'),
+  Tariff.whole:    ('Вся машина', '18 000 ₸', 'до Ушарала'),
+  Tariff.delivery: ('Доставка',   '400 ₸',    'по посёлку'),
 };
 
 
@@ -1933,10 +1951,11 @@ class _WishSheet extends StatelessWidget {
 }
 
 // ─── Быстрые чипы данные ────────────────────────────────────────────────────
-const _quickPlaces = [
-  ('🏠 Дом',      '🏠'),
-  ('Рынок',       '🛒'),
-  ('Больница',    '🏥'),
-  ('Школа №1',    '🏫'),
-  ('КПП',         '🛃'),
+const _quickPlacesData = [
+  ('Дом',           Color(0xFF0E7C66), Icons.home_outlined),
+  ('Вокзал Достык', Color(0xFF6E56CF), Icons.train_outlined),
+  ('Больница',      Color(0xFFE5484D), Icons.add_circle_outline),
+  ('Таможня · КПП', Color(0xFF0B7A75), Icons.security),
+  ('Школа',         Color(0xFFD97A00), Icons.school_outlined),
+  ('Базар',         Color(0xFF13A35A), Icons.shopping_bag_outlined),
 ];

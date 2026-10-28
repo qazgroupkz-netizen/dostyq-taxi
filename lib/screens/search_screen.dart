@@ -12,13 +12,13 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final _ctrl = TextEditingController();
-  List<(String, String, String)> _results = [];
+  List<(String, String, IconData, Color)> _results = [];
   bool _hasInput = false;
 
   @override
   void initState() {
     super.initState();
-    _results = mockPlaces.cast();
+    _results = mockPlaces.toList();
     _ctrl.addListener(_onInput);
   }
 
@@ -33,14 +33,13 @@ class _SearchScreenState extends State<SearchScreen> {
     setState(() {
       _hasInput = q.isNotEmpty;
       if (q.isEmpty) {
-        _results = mockPlaces.cast();
+        _results = mockPlaces.toList();
       } else {
         _results = mockPlaces
             .where((p) =>
                 p.$1.toLowerCase().contains(q) ||
                 p.$2.toLowerCase().contains(q))
-            .toList()
-            .cast();
+            .toList();
       }
     });
   }
@@ -97,7 +96,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       // Откуда
                       _RouteRow(
                         isFrom: true,
-                        value: 'Моё местоположение',
+                        value: context.read<AppState>().fromAddress,
                         readOnly: true,
                         ctx: context,
                       ),
@@ -186,7 +185,8 @@ class _SearchScreenState extends State<SearchScreen> {
                 ..._results.map((p) => _PlaceItem(
                       name: p.$1,
                       sub: p.$2,
-                      emoji: p.$3,
+                      icon: p.$3,
+                      iconColor: p.$4,
                       onTap: () => _pick(p.$1),
                       ctx: context,
                     )),
@@ -194,7 +194,8 @@ class _SearchScreenState extends State<SearchScreen> {
                   _PlaceItem(
                     name: _ctrl.text.trim(),
                     sub: 'Записать как есть',
-                    emoji: '📍',
+                    icon: Icons.location_on_outlined,
+                    iconColor: context.taxi,
                     onTap: () => _pick(_ctrl.text.trim()),
                     ctx: context,
                   ),
@@ -285,13 +286,15 @@ class _RouteRow extends StatelessWidget {
 }
 
 class _PlaceItem extends StatelessWidget {
-  final String name, sub, emoji;
+  final String name, sub;
+  final IconData icon;
+  final Color iconColor;
   final VoidCallback onTap;
   final BuildContext ctx;
   const _PlaceItem({
     required this.name, required this.sub,
-    required this.emoji, required this.onTap,
-    required this.ctx,
+    required this.icon, required this.iconColor,
+    required this.onTap, required this.ctx,
   });
 
   @override
@@ -305,11 +308,11 @@ class _PlaceItem extends StatelessWidget {
             Container(
               width: 44, height: 44,
               decoration: BoxDecoration(
-                color: ctx.surface,
+                color: iconColor.withOpacity(.12),
                 borderRadius: BorderRadius.circular(14),
               ),
               alignment: Alignment.center,
-              child: Text(emoji, style: const TextStyle(fontSize: 20)),
+              child: Icon(icon, color: iconColor, size: 22),
             ),
             const SizedBox(width: 14),
             Expanded(
