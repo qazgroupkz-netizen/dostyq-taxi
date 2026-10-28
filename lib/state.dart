@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:latlong2/latlong.dart';
 import 'data/orders.dart';
+import 'services/location.dart';
+import 'widgets/taxi_map.dart' show dostykCenter;
 
 enum ClientState { home, seek, coming, arrived, ride, rate }
 enum DriverState { offline, waiting, offer, active }
@@ -87,6 +90,57 @@ class AppState extends ChangeNotifier {
   }
   void toggleSheet()  { sheetExpanded = !sheetExpanded; notifyListeners(); }
 
+  // ─── Местоположение ─────────────────────────────────────────────────────
+  LatLng pickup = dostykCenter;
+  LatLng? myLocation;
+  LatLng? driverLocation;
+  StreamSubscription<Geo?>? _driverLocSub;
+
+  void setPickup(LatLng p) {
+    if (clientState != ClientState.home) return;
+    if (Distance()(p, pickup) < 3) return;
+    pickup = p;
+    fromAddress = 'Точка на карте';
+    notifyListeners();
+  }
+
+  Future<LatLng?> locateMe() async {
+    final p = await LocationService.current();
+    if (p != null) {
+      myLocation = p;
+      notifyListeners();
+    }
+    return p;
+  }
+
+  /// Минуты до подачи по прямой, при средней скорости 25 км/ч.
+  int? get etaMinutes {
+    final car = driverLocation;
+    if (car == null) return null;
+    final m = Distance()(car, pickup);
+    return (m / 420).ceil().clamp(1, 999);
+  }
+
+  double? get driverDistanceMeters {
+    final car = driverLocation;
+    return car == null ? null : Distance()(car, pickup);
+  }
+
+  void _watchDriverOf(TaxiOrder o) {
+    final id = o.driverId;
+    if (id == null || _driverLocSub != null) return;
+    _driverLocSub = orders.watchDriverLocation(id).listen((g) {
+      driverLocation = g == null ? null : LatLng(g.lat, g.lng);
+      notifyListeners();
+    });
+  }
+
+  void _stopWatchingDriver() {
+    _driverLocSub?.cancel();
+    _driverLocSub = null;
+    driverLocation = null;
+  }
+
   // ─── Заказ клиента ──────────────────────────────────────────────────────
   String? activeOrderId;
   TaxiOrder? activeOrder;
@@ -101,6 +155,7 @@ class AppState extends ChangeNotifier {
         clientId: uid!,
         clientName: await _myName(),
         from: fromAddress,
+        fromGeo: (lat: pickup.latitude, lng: pickup.longitude),
         to: destination,
         tariff: tariff.name,
         price: tariffPriceInt,
@@ -130,9 +185,15 @@ class AppState extends ChangeNotifier {
       'cancelled' => ClientState.home,
       _           => ClientState.seek,
     };
+    if (next == ClientState.coming ||
+        next == ClientState.arrived ||
+        next == ClientState.ride) {
+      _watchDriverOf(o);
+    }
     if (next == ClientState.home || next == ClientState.rate) {
       _clientOrderSub?.cancel();
       _clientOrderSub = null;
+      _stopWatchingDriver();
     }
     if (next == ClientState.home) {
       activeOrderId = null;
@@ -149,6 +210,7 @@ class AppState extends ChangeNotifier {
     final id = activeOrderId;
     _clientOrderSub?.cancel();
     _clientOrderSub = null;
+    _stopWatchingDriver();
     activeOrderId = null;
     activeOrder = null;
     setClientState(ClientState.home);
@@ -191,6 +253,9 @@ class AppState extends ChangeNotifier {
           ? DriverState.offer
           : DriverState.waiting;
 
+  StreamSubscription<LatLng>? _gpsSub;
+  DateTime _lastGpsSent = DateTime.fromMillisecondsSinceEpoch(0);
+
   void _syncDriverListening() {
     final listen = isDriverMode && isOnline;
     if (listen && _searchSub == null) {
@@ -198,11 +263,34 @@ class AppState extends ChangeNotifier {
         _searching = list;
         notifyListeners();
       });
+      _startGps();
+      if (uid != null) orders.setDriverOnline(uid!, true);
     } else if (!listen && _searchSub != null) {
       _searchSub!.cancel();
       _searchSub = null;
       _searching = [];
+      _gpsSub?.cancel();
+      _gpsSub = null;
+      if (uid != null) orders.setDriverOnline(uid!, false);
     }
+  }
+
+  void _startGps() {
+    _gpsSub?.cancel();
+    _gpsSub = LocationService.watch().listen(_onGps);
+    // Первая точка сразу, не дожидаясь движения.
+    LocationService.current().then((p) {
+      if (p != null && _gpsSub != null) _onGps(p);
+    });
+  }
+
+  void _onGps(LatLng p) {
+    myLocation = p;
+    notifyListeners();
+    final now = DateTime.now();
+    if (uid == null || now.difference(_lastGpsSent).inSeconds < 4) return;
+    _lastGpsSent = now;
+    orders.updateDriverLocation(uid!, (lat: p.latitude, lng: p.longitude));
   }
 
   void skipOffer(String id) {
@@ -252,6 +340,8 @@ class AppState extends ChangeNotifier {
     _clientOrderSub?.cancel();
     _searchSub?.cancel();
     _driverOrderSub?.cancel();
+    _driverLocSub?.cancel();
+    _gpsSub?.cancel();
     super.dispose();
   }
 

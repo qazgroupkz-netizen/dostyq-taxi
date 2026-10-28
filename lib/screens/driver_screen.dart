@@ -4,7 +4,8 @@ import 'dart:async';
 import '../data/orders.dart';
 import '../state.dart';
 import '../theme.dart';
-import '../widgets/mock_map.dart';
+import 'package:latlong2/latlong.dart' show LatLng;
+import '../widgets/taxi_map.dart';
 
 // ════════════════════════════════════════════════════════════════
 //  Экран водителя (всегда тёмная тема)
@@ -45,7 +46,18 @@ class _DriverBody extends StatelessWidget {
       body: Stack(
         children: [
           // Карта сзади
-          Opacity(opacity: .25, child: const MockMap()),
+          Opacity(
+            opacity: .45,
+            child: TaxiMap(
+              interactive: false,
+              follow: state.myLocation,
+              initialCenter: state.myLocation ?? dostykCenter,
+              me: state.myLocation,
+              pickup: state.driverOrder?.fromLat == null
+                  ? null
+                  : LatLng(state.driverOrder!.fromLat!, state.driverOrder!.fromLng!),
+            ),
+          ),
 
           // Контент
           SafeArea(

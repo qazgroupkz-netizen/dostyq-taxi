@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../state.dart';
 import '../theme.dart';
-import '../widgets/mock_map.dart';
+import '../widgets/ornament_icon.dart';
 import '../services/phone_auth.dart' as phone_web;
 
 class AuthScreen extends StatefulWidget {

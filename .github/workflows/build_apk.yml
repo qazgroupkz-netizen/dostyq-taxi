@@ -62,6 +62,8 @@ jobs:
           sed -i 's/id "dev.flutter.flutter-gradle-plugin"/&\n    id "com.google.gms.google-services"/' android/app/build.gradle
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 23/' android/app/build.gradle
           grep -q 'minSdk = 23' android/app/build.gradle || { echo "minSdk patch failed"; cat android/app/build.gradle; exit 1; }
+          sed -i 's|<application|<uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>\n    <application|' android/app/src/main/AndroidManifest.xml
+          grep -q 'ACCESS_FINE_LOCATION' android/app/src/main/AndroidManifest.xml || { echo "manifest patch failed"; exit 1; }
           grep -q 'com.google.gms.google-services' android/settings.gradle || { echo "settings.gradle patch failed"; cat android/settings.gradle; exit 1; }
           grep -q 'com.google.gms.google-services' android/app/build.gradle || { echo "app/build.gradle patch failed"; cat android/app/build.gradle; exit 1; }
 

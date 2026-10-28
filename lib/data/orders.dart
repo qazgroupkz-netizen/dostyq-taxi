@@ -6,6 +6,8 @@ class TaxiOrder {
   final String clientId;
   final String clientName;
   final String from;
+  final double? fromLat;
+  final double? fromLng;
   final String to;
   final String tariff;
   final int price;
@@ -21,6 +23,8 @@ class TaxiOrder {
     required this.clientId,
     required this.clientName,
     required this.from,
+    this.fromLat,
+    this.fromLng,
     required this.to,
     required this.tariff,
     required this.price,
@@ -32,11 +36,14 @@ class TaxiOrder {
   });
 }
 
+typedef Geo = ({double lat, double lng});
+
 abstract class OrderRepository {
   Future<String> create({
     required String clientId,
     required String clientName,
     required String from,
+    Geo? fromGeo,
     required String to,
     required String tariff,
     required int price,
@@ -55,6 +62,12 @@ abstract class OrderRepository {
   Future<void> update(String id, Map<String, Object?> fields);
 
   Future<String> userName(String uid);
+
+  Future<void> updateDriverLocation(String uid, Geo geo);
+
+  Future<void> setDriverOnline(String uid, bool online);
+
+  Stream<Geo?> watchDriverLocation(String uid);
 }
 
 class FirestoreOrderRepository implements OrderRepository {
@@ -64,12 +77,16 @@ class FirestoreOrderRepository implements OrderRepository {
   static TaxiOrder _fromDoc(DocumentSnapshot<Map<String, dynamic>> d) {
     final m = d.data() ?? const {};
     String label(Object? v) => v is Map ? (v['label'] as String? ?? '') : '';
+    double? coord(Object? v, String k) =>
+        v is Map ? (v[k] as num?)?.toDouble() : null;
     return TaxiOrder(
       id: d.id,
       status: m['status'] as String? ?? 'searching',
       clientId: m['clientId'] as String? ?? '',
       clientName: m['clientName'] as String? ?? '',
       from: label(m['from']),
+      fromLat: coord(m['from'], 'lat'),
+      fromLng: coord(m['from'], 'lng'),
       to: label(m['to']),
       tariff: m['service'] as String? ?? 'local',
       price: (m['price'] as num?)?.toInt() ?? 0,
@@ -86,6 +103,7 @@ class FirestoreOrderRepository implements OrderRepository {
     required String clientId,
     required String clientName,
     required String from,
+    Geo? fromGeo,
     required String to,
     required String tariff,
     required int price,
@@ -94,7 +112,11 @@ class FirestoreOrderRepository implements OrderRepository {
     final ref = await _orders.add({
       'clientId': clientId,
       'clientName': clientName,
-      'from': {'label': from},
+      'from': {
+        'label': from,
+        if (fromGeo != null) 'lat': fromGeo.lat,
+        if (fromGeo != null) 'lng': fromGeo.lng,
+      },
       'to': {'label': to},
       'service': tariff,
       'price': price,
@@ -155,4 +177,32 @@ class FirestoreOrderRepository implements OrderRepository {
     final d = await _db.collection('users').doc(uid).get();
     return d.data()?['name'] as String? ?? '';
   }
+
+  CollectionReference<Map<String, dynamic>> get _drivers => _db.collection('drivers');
+
+  @override
+  Future<void> updateDriverLocation(String uid, Geo geo) =>
+      _drivers.doc(uid).set({
+        'location': {
+          'lat': geo.lat,
+          'lng': geo.lng,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+      }, SetOptions(merge: true));
+
+  @override
+  Future<void> setDriverOnline(String uid, bool online) =>
+      _drivers.doc(uid).set({'status': online ? 'online' : 'offline'},
+          SetOptions(merge: true));
+
+  @override
+  Stream<Geo?> watchDriverLocation(String uid) =>
+      _drivers.doc(uid).snapshots().map((d) {
+        final loc = d.data()?['location'];
+        if (loc is! Map) return null;
+        final lat = (loc['lat'] as num?)?.toDouble();
+        final lng = (loc['lng'] as num?)?.toDouble();
+        if (lat == null || lng == null) return null;
+        return (lat: lat, lng: lng);
+      });
 }

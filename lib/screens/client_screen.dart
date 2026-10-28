@@ -4,7 +4,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import '../state.dart';
 import '../theme.dart';
-import '../widgets/mock_map.dart';
+import 'package:flutter_map/flutter_map.dart' show MapController, CameraFit;
+import 'package:latlong2/latlong.dart' show Distance;
+import '../widgets/ornament_icon.dart';
+import '../widgets/taxi_map.dart';
 import '../widgets/car_svgs.dart';
 import 'search_screen.dart';
 import 'trip_screen.dart';
@@ -20,72 +23,82 @@ class ClientScreen extends StatefulWidget {
 
 class _ClientScreenState extends State<ClientScreen> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
-  Timer? _ticker;
+  final _map = MapController();
+  String? _fittedOrderId;
 
   @override
   void initState() {
     super.initState();
-    // Перестраиваем каждые 3 с — ETA и позиция машины на карте
-    _ticker = Timer.periodic(const Duration(seconds: 3), (_) {
-      if (mounted) setState(() {});
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final p = await context.read<AppState>().locateMe();
+      if (!mounted || p == null) return;
+      // Сервис работает только в Достыке: далеко — оставляем центр посёлка.
+      if (Distance()(p, dostykCenter) < 30000) _map.move(p, 16);
+    });
+  }
+
+  Future<void> _goToMe(AppState state) async {
+    final p = await state.locateMe();
+    if (!mounted) return;
+    if (p == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Не удалось определить местоположение. '
+            'Разрешите доступ к геолокации в настройках браузера.'),
+      ));
+      return;
+    }
+    _map.move(p, 16);
+  }
+
+  void _zoom(double delta) {
+    final cam = _map.camera;
+    _map.move(cam.center, (cam.zoom + delta).clamp(4, 18));
+  }
+
+  void _fitCarAndPickup(AppState state) {
+    final car = state.driverLocation;
+    final id = state.activeOrderId;
+    if (car == null || id == null || _fittedOrderId == id) return;
+    _fittedOrderId = id;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _map.fitCamera(CameraFit.coordinates(
+        coordinates: [car, state.pickup],
+        maxZoom: 17,
+        padding: EdgeInsets.fromLTRB(
+            60, MediaQuery.of(context).padding.top + 90, 60,
+            _bottomSheetHeight(state) + 50),
+      ));
     });
   }
 
   @override
-  void dispose() {
-    _ticker?.cancel();
-    super.dispose();
-  }
-
-  static String _hm(DateTime dt) =>
-      '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-
-  @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    final isHome = state.clientState == ClientState.home;
+    final showCar = state.clientState == ClientState.coming ||
+        state.clientState == ClientState.arrived ||
+        state.clientState == ClientState.ride;
 
-    // ── Вычисляем подписи для карты ─────────────────────────────
-    final now = DateTime.now();
-    final elapsed = state.stateEnteredAt != null
-        ? now.difference(state.stateEnteredAt!)
-        : Duration.zero;
-
-    String? pickupLabel;
-    String? destLabel;
-    double? carFraction;
-    String? carPhase;
-
+    String? pinLabel;
     switch (state.clientState) {
       case ClientState.home:
+        pinLabel = 'Заберём здесь';
       case ClientState.seek:
-        pickupLabel = '~3 мин';
-        if (state.destination.isNotEmpty) {
-          destLabel = 'Приедёте в ${_hm(now.add(const Duration(minutes: 8)))}';
-        }
+        pinLabel = 'Ищем машину';
       case ClientState.coming:
-        final eta = (3 - elapsed.inMinutes).clamp(0, 3);
-        pickupLabel = eta > 0 ? '~$eta мин' : 'Прибывает';
-        if (state.destination.isNotEmpty) {
-          destLabel = 'Приедёте в ${_hm(now.add(Duration(minutes: eta + 5)))}';
-        }
-        carFraction = (elapsed.inSeconds / 180.0).clamp(0.0, 1.0);
-        carPhase = 'coming';
+        final d = state.driverDistanceMeters;
+        final eta = state.etaMinutes;
+        pinLabel = d != null && d < 100
+            ? 'Прибывает'
+            : eta != null ? '~$eta мин' : 'Водитель едет';
       case ClientState.arrived:
-        pickupLabel = 'На месте';
-        if (state.destination.isNotEmpty) {
-          destLabel = 'Приедёте в ${_hm(now.add(const Duration(minutes: 5)))}';
-        }
+        pinLabel = 'Машина на месте';
       case ClientState.ride:
-        final remaining = (5 - elapsed.inMinutes).clamp(0, 5);
-        if (state.destination.isNotEmpty) {
-          destLabel = 'Приедёте в ${_hm(now.add(Duration(minutes: remaining)))}';
-        }
-        carFraction = (elapsed.inSeconds / 300.0).clamp(0.0, 1.0);
-        carPhase = 'ride';
       case ClientState.rate:
-        break;
+        pinLabel = null;
     }
-    // ─────────────────────────────────────────────────────────────
+    if (showCar) _fitCarAndPickup(state);
 
     return Scaffold(
       key: _scaffoldKey,
@@ -93,12 +106,15 @@ class _ClientScreenState extends State<ClientScreen> {
       body: Stack(
         children: [
           // Карта на весь экран
-          RepaintBoundary(child: MockMap(
-            pickupLabel: pickupLabel,
-            destLabel: destLabel,
-            carFraction: carFraction,
-            carPhase: carPhase,
-          )),
+          TaxiMap(
+            controller: _map,
+            centerPin: isHome,
+            pinLabel: pinLabel,
+            onCenterChanged: isHome ? state.setPickup : null,
+            pickup: state.clientState == ClientState.rate ? null : state.pickup,
+            car: showCar ? state.driverLocation : null,
+            me: state.myLocation,
+          ),
 
           // FAB — Меню
           Positioned(
@@ -177,7 +193,7 @@ class _ClientScreenState extends State<ClientScreen> {
                     width: 48, height: 46,
                     child: IconButton(
                       icon: Icon(Icons.add, color: context.ink),
-                      onPressed: () {},
+                      onPressed: () => _zoom(1),
                     ),
                   ),
                   Divider(height: 1, color: context.lineC),
@@ -185,7 +201,7 @@ class _ClientScreenState extends State<ClientScreen> {
                     width: 48, height: 46,
                     child: IconButton(
                       icon: Icon(Icons.remove, color: context.ink),
-                      onPressed: () {},
+                      onPressed: () => _zoom(-1),
                     ),
                   ),
                 ],
@@ -209,7 +225,7 @@ class _ClientScreenState extends State<ClientScreen> {
                 _MapFab(
                   icon: Icons.my_location_rounded,
                   color: context.taxi,
-                  onTap: () {},
+                  onTap: () => _goToMe(state),
                 ),
               ],
             ),
@@ -843,7 +859,8 @@ class _ComingPanelState extends State<_ComingPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.read<AppState>();
+    final state = context.watch<AppState>();
+    final eta = state.etaMinutes;
     return Column(
       key: const ValueKey('coming'),
       mainAxisSize: MainAxisSize.min,
@@ -856,7 +873,7 @@ class _ComingPanelState extends State<_ComingPanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Приедет через 3 мин',
+                    Text(eta == null ? 'Водитель едет к вам' : 'Приедет через $eta мин',
                         style: TextStyle(
                           color: context.ink,
                           fontSize: 24, fontWeight: FontWeight.w800,
@@ -1030,7 +1047,7 @@ class _RidePanelState extends State<_RidePanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('В пути · 3 мин',
+                    Text('В пути',
                         style: TextStyle(
                           color: context.ink,
                           fontSize: 24, fontWeight: FontWeight.w800,
