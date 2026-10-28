@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'state.dart';
 import 'theme.dart';
 import 'firebase_options.dart';
+import 'services/sound.dart';
 import 'screens/auth_screen.dart';
 import 'screens/client_screen.dart';
 import 'screens/driver_screen.dart';
@@ -38,6 +39,10 @@ class DostyqApp extends StatelessWidget {
       title: 'DOSTYQ TAXI',
       debugShowCheckedModeBanner: false,
       themeMode: themeMode,
+      builder: (context, child) => Listener(
+        onPointerDown: (_) => unlockSound(),
+        child: child,
+      ),
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       home: StreamBuilder<User?>(

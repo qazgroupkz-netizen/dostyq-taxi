@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 import '../data/orders.dart';
+import '../services/sound.dart';
 import '../state.dart';
 import '../theme.dart';
 import 'package:latlong2/latlong.dart' show LatLng;
@@ -439,9 +440,11 @@ class _OfferCardState extends State<_OfferCard> {
   @override
   void initState() {
     super.initState();
+    playAlert();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       setState(() => _secs--);
+      if (_secs > 0 && _secs % 5 == 0) playAlert();
       if (_secs <= 0) {
         _timer?.cancel();
         context.read<AppState>().skipOffer(widget.order.id);

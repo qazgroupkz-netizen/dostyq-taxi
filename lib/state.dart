@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:latlong2/latlong.dart';
 import 'data/orders.dart';
 import 'services/location.dart';
+import 'services/sound.dart';
 import 'widgets/taxi_map.dart' show dostykCenter;
 
 enum ClientState { home, seek, coming, arrived, ride, rate }
@@ -200,6 +201,7 @@ class AppState extends ChangeNotifier {
       activeOrder = null;
     }
     if (next != clientState) {
+      if (next == ClientState.coming || next == ClientState.arrived) playAlert();
       setClientState(next);
     } else {
       notifyListeners();
@@ -342,6 +344,7 @@ class AppState extends ChangeNotifier {
     _driverOrderSub?.cancel();
     _driverOrderSub = orders.watch(o.id).listen((d) {
       if (d == null || d.status == 'cancelled' || d.status == 'done') {
+        if (d?.status == 'cancelled') playAlert();
         _simTimer?.cancel();
         _simTimer = null;
         driverOrder = null;
