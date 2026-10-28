@@ -102,7 +102,7 @@ jobs:
       - run: flutter pub get
 
       - name: Build web
-        run: flutter build web --release --base-href /dostyq-taxi/ --web-renderer html
+        run: flutter build web --release --base-href /dostyq-taxi/ --web-renderer canvaskit
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3

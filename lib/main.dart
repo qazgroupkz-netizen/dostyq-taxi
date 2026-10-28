@@ -29,11 +29,15 @@ class DostyqApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
+    // select, а не watch: иначе каждое движение карты перестраивает всё приложение.
+    final themeMode = context.select<AppState, ThemeMode>((s) => s.themeMode);
+    final isDriverMode = context.select<AppState, bool>((s) => s.isDriverMode);
+    final profileLoaded = context.select<AppState, bool>((s) => s.profileLoaded);
+    final hasName = context.select<AppState, bool>((s) => s.userName.isNotEmpty);
     return MaterialApp(
       title: 'DOSTYQ TAXI',
       debugShowCheckedModeBanner: false,
-      themeMode: state.themeMode,
+      themeMode: themeMode,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       home: StreamBuilder<User?>(
@@ -46,9 +50,9 @@ class DostyqApp extends StatelessWidget {
           );
           if (snap.connectionState == ConnectionState.waiting) return loading;
           if (snap.data == null) return const AuthScreen();
-          if (!state.profileLoaded) return loading;
-          if (state.userName.isEmpty) return const AuthScreen(nameOnly: true);
-          return state.isDriverMode
+          if (!profileLoaded) return loading;
+          if (!hasName) return const AuthScreen(nameOnly: true);
+          return isDriverMode
               ? const DriverScreen()
               : const ClientScreen();
         },
