@@ -53,6 +53,14 @@ jobs:
             rm -rf android/app/src/main/kotlin/kz/dostyq/dostyq_taxi
           fi
 
+      - name: Add Firebase google-services
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          echo "$GOOGLE_SERVICES" > android/app/google-services.json
+          sed -i 's/classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:\$kotlin_version"/classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:\$kotlin_version"\n        classpath "com.google.gms:google-services:4.4.2"/' android/build.gradle
+          sed -i 's/id "dev.flutter.flutter-gradle-plugin"/id "dev.flutter.flutter-gradle-plugin"\n    id "com.google.gms.google-services"/' android/app/build.gradle
+
       - run: flutter pub get
 
       - run: flutter build apk --release

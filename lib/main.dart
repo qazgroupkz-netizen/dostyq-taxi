@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'state.dart';
 import 'theme.dart';
+import 'firebase_options.dart';
+import 'screens/auth_screen.dart';
 import 'screens/client_screen.dart';
 import 'screens/driver_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   runApp(
     ChangeNotifierProvider(
@@ -29,9 +36,24 @@ class DostyqApp extends StatelessWidget {
       themeMode: state.themeMode,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      home: state.isDriverMode
-          ? const DriverScreen()
-          : const ClientScreen(),
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(
+                  color: Color(0xFF0E7C66),
+                ),
+              ),
+            );
+          }
+          if (snap.data == null) return const AuthScreen();
+          return state.isDriverMode
+              ? const DriverScreen()
+              : const ClientScreen();
+        },
+      ),
     );
   }
 }
