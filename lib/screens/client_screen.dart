@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import '../state.dart';
 import '../theme.dart';
@@ -554,12 +555,7 @@ class _HomePanel extends StatelessWidget {
                 fullscreenDialog: true),
           );
         } else {
-          state.setClientState(ClientState.seek);
-          Future.delayed(const Duration(seconds: 4), () {
-            if (state.clientState == ClientState.seek) {
-              state.setClientState(ClientState.coming);
-            }
-          });
+          state.placeOrder();
         }
       },
     );
@@ -788,7 +784,7 @@ class _SeekPanelState extends State<_SeekPanel>
           child: _CtaButton(
             label: 'Отменить заказ',
             soft: true,
-            onTap: () => state.setClientState(ClientState.home),
+            onTap: () => state.cancelOrder(),
           ),
         ),
       ],
@@ -883,7 +879,7 @@ class _ComingPanelState extends State<_ComingPanel> {
         const SizedBox(height: 14),
         _DriverRow(),
         const SizedBox(height: 12),
-        _ActionRow(onCancel: () => state.setClientState(ClientState.home)),
+        _ActionRow(onCancel: () => state.cancelOrder()),
         const SizedBox(height: 12),
         _TripMini(),
       ],
@@ -919,7 +915,8 @@ class _ArrivedPanelState extends State<_ArrivedPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.read<AppState>();
+    final state = context.watch<AppState>();
+    final comingOut = state.activeOrder?.clientComingOut ?? false;
     return Column(
       key: const ValueKey('arrived'),
       mainAxisSize: MainAxisSize.min,
@@ -981,8 +978,9 @@ class _ArrivedPanelState extends State<_ArrivedPanel> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: _CtaButton(
-            label: 'Выхожу',
-            onTap: () => state.setClientState(ClientState.ride),
+            label: comingOut ? 'Водитель знает, что вы выходите' : 'Выхожу',
+            soft: comingOut,
+            onTap: () => state.markComingOut(),
           ),
         ),
       ],
@@ -1006,10 +1004,7 @@ class _RidePanelState extends State<_RidePanel> {
     super.initState();
     _timer = Timer.periodic(const Duration(seconds: 3), (_) {
       if (!mounted) return;
-      setState(() => _progress = (_progress + .08).clamp(0, 1));
-      if (_progress >= 1) {
-        context.read<AppState>().setClientState(ClientState.rate);
-      }
+      setState(() => _progress = (_progress + .08).clamp(0, .95));
     });
   }
   @override
@@ -1107,7 +1102,7 @@ class _RatePanelState extends State<_RatePanel> {
             shape: BoxShape.circle,
           ),
           alignment: Alignment.center,
-          child: Text(mockDriver.initial,
+          child: Text(_initial(state.activeOrder?.driverName),
               style: TextStyle(
                 color: context.taxi,
                 fontSize: 28, fontWeight: FontWeight.w800,
@@ -1177,10 +1172,7 @@ class _RatePanelState extends State<_RatePanel> {
             label: 'Готово',
             dark: true,
             enabled: _stars > 0,
-            onTap: () {
-              state.setDestination('');
-              state.setClientState(ClientState.home);
-            },
+            onTap: () => state.finishRating(_stars),
           ),
         ),
       ],
@@ -1262,9 +1254,13 @@ class _TripRow extends StatelessWidget {
   }
 }
 
+String _initial(String? name) =>
+    (name == null || name.isEmpty) ? mockDriver.initial : name.characters.first.toUpperCase();
+
 class _DriverRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final driverName = context.watch<AppState>().activeOrder?.driverName;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
@@ -1278,7 +1274,7 @@ class _DriverRow extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: context.taxiSft, shape: BoxShape.circle),
                 alignment: Alignment.center,
-                child: Text(mockDriver.initial,
+                child: Text(_initial(driverName),
                     style: TextStyle(
                       color: context.taxi,
                       fontSize: 19, fontWeight: FontWeight.w800,
@@ -1313,7 +1309,7 @@ class _DriverRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(mockDriver.name,
+                Text((driverName == null || driverName.isEmpty) ? mockDriver.name : driverName,
                     style: TextStyle(
                       color: context.ink,
                       fontSize: 16, fontWeight: FontWeight.w700,
@@ -1707,13 +1703,13 @@ class _SideDrawer extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Гульнар',
-                          style: TextStyle(
+                      Text(state.userName.isEmpty ? 'Клиент' : state.userName,
+                          style: const TextStyle(
                             color: Color(0xFFF2F4F7),
                             fontSize: 17, fontWeight: FontWeight.w700,
                           )),
-                      const Text('+7 7•• ••• •• 21',
-                          style: TextStyle(
+                      Text(FirebaseAuth.instance.currentUser?.phoneNumber ?? '',
+                          style: const TextStyle(
                             color: Color(0xFFA3ABB6), fontSize: 13)),
                     ],
                   ),
@@ -1755,6 +1751,14 @@ class _SideDrawer extends StatelessWidget {
                   icon: Icons.headset_outlined,
                   label: 'Поддержка',
                   onTap: onClose,
+                ),
+                _DrawerItem(
+                  icon: Icons.logout_rounded,
+                  label: 'Выйти',
+                  onTap: () {
+                    onClose();
+                    FirebaseAuth.instance.signOut();
+                  },
                 ),
               ],
             ),

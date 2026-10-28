@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
+import '../data/orders.dart';
 import '../state.dart';
 import '../theme.dart';
 import '../widgets/mock_map.dart';
@@ -68,8 +69,8 @@ class _DriverBody extends StatelessWidget {
                               fontSize: 13, fontWeight: FontWeight.w500,
                             ),
                           ),
-                          const Text('Ерлан',
-                              style: TextStyle(
+                          Text(state.userName.isEmpty ? 'Водитель' : state.userName,
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 21, fontWeight: FontWeight.w800,
                               )),
@@ -128,43 +129,16 @@ class _DriverBody extends StatelessWidget {
                         const SizedBox(height: 16),
 
                         // Активный заказ или ожидание
-                        if (state.isOnline) ...[
-                          if (state.driverState == DriverState.offer)
-                            _OfferCard()
-                          else if (state.driverState == DriverState.active)
-                            _ActiveRideCard()
-                          else
-                            _WaitingCard(),
-                        ] else
-                          _OfflineCard(),
-
-                        // Кнопка-демо для теста
-                        if (state.isOnline &&
-                            state.driverState == DriverState.waiting)
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                            child: GestureDetector(
-                              onTap: () =>
-                                  state.setDriverState(DriverState.offer),
-                              child: Container(
-                                height: 50,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF1F232A),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                      color: const Color(0xFF2A2F37)),
-                                ),
-                                alignment: Alignment.center,
-                                child: const Text(
-                                  '🔔  Показать новый заказ (демо)',
-                                  style: TextStyle(
-                                    color: Color(0xFF7FDCC4),
-                                    fontSize: 14, fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
+                        if (state.driverOrder != null)
+                          _ActiveRideCard(order: state.driverOrder!)
+                        else if (!state.isOnline)
+                          _OfflineCard()
+                        else if (state.offer != null)
+                          _OfferCard(
+                              key: ValueKey(state.offer!.id),
+                              order: state.offer!)
+                        else
+                          _WaitingCard(),
                       ],
                     ),
                   ),
@@ -417,7 +391,26 @@ class _OfflineCard extends StatelessWidget {
 }
 
 // ─── Карточка нового заказа с таймером ──────────────────────────────────────
+String _priceText(int p) {
+  final s = p.toString();
+  final b = StringBuffer();
+  for (var i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) b.write(' ');
+    b.write(s[i]);
+  }
+  return '$b ₸';
+}
+
+String _tariffLabel(String t) => switch (t) {
+      'border'   => 'Ушарал',
+      'whole'    => 'Вся машина',
+      'delivery' => 'Доставка',
+      _          => 'Посёлок',
+    };
+
 class _OfferCard extends StatefulWidget {
+  final TaxiOrder order;
+  const _OfferCard({super.key, required this.order});
   @override
   State<_OfferCard> createState() => _OfferCardState();
 }
@@ -433,7 +426,8 @@ class _OfferCardState extends State<_OfferCard> {
       if (!mounted) return;
       setState(() => _secs--);
       if (_secs <= 0) {
-        context.read<AppState>().setDriverState(DriverState.waiting);
+        _timer?.cancel();
+        context.read<AppState>().skipOffer(widget.order.id);
       }
     });
   }
@@ -444,7 +438,8 @@ class _OfferCardState extends State<_OfferCard> {
   @override
   Widget build(BuildContext context) {
     final state = context.read<AppState>();
-    final progress = _secs / 20.0;
+    final order = widget.order;
+    final progress = (_secs / 20.0).clamp(0.0, 1.0);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -460,8 +455,8 @@ class _OfferCardState extends State<_OfferCard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('500 ₸',
-                  style: TextStyle(
+              Text(_priceText(order.price),
+                  style: const TextStyle(
                     color: Color(0xFF14171F),
                     fontSize: 28, fontWeight: FontWeight.w800,
                     letterSpacing: -.03 * 28,
@@ -475,8 +470,8 @@ class _OfferCardState extends State<_OfferCard> {
                       color: const Color(0xFFE3F2EE),
                       borderRadius: BorderRadius.circular(9),
                     ),
-                    child: const Text('Посёлок',
-                        style: TextStyle(
+                    child: Text(_tariffLabel(order.tariff),
+                        style: const TextStyle(
                           color: Color(0xFF0A5C4C),
                           fontSize: 12.5, fontWeight: FontWeight.w700,
                         )),
@@ -510,9 +505,13 @@ class _OfferCardState extends State<_OfferCard> {
           ),
           const SizedBox(height: 14),
           // Маршрут
-          _OfferRoute(
-              from: 'ул. Молдагуловой, 12',
-              to: 'Больница'),
+          _OfferRoute(from: order.from, to: order.to),
+          const SizedBox(height: 8),
+          Text(
+            '${order.clientName.isEmpty ? 'Клиент' : order.clientName} · '
+            '${order.payment == 'kaspi' ? 'Kaspi' : 'Наличные'}',
+            style: const TextStyle(color: Color(0xFF5E6571), fontSize: 14),
+          ),
           const SizedBox(height: 14),
           // Кнопки
           Row(
@@ -520,7 +519,7 @@ class _OfferCardState extends State<_OfferCard> {
               // Пропустить
               Expanded(
                 child: GestureDetector(
-                  onTap: () => state.setDriverState(DriverState.waiting),
+                  onTap: () => state.skipOffer(order.id),
                   child: Container(
                     height: 54,
                     decoration: BoxDecoration(
@@ -541,7 +540,10 @@ class _OfferCardState extends State<_OfferCard> {
               Expanded(
                 flex: 2,
                 child: GestureDetector(
-                  onTap: () => state.setDriverState(DriverState.active),
+                  onTap: () {
+                    _timer?.cancel();
+                    state.acceptOffer(order);
+                  },
                   child: Container(
                     height: 54,
                     decoration: BoxDecoration(
@@ -610,11 +612,13 @@ class _OfferRouteRow extends StatelessWidget {
                   borderRadius: BorderRadius.circular(3),
                 )),
         const SizedBox(width: 12),
-        Text(label,
-            style: const TextStyle(
-              color: Color(0xFF14171F),
-              fontSize: 15, fontWeight: FontWeight.w600,
-            )),
+        Expanded(
+          child: Text(label.isEmpty ? '—' : label,
+              style: const TextStyle(
+                color: Color(0xFF14171F),
+                fontSize: 15, fontWeight: FontWeight.w600,
+              )),
+        ),
       ],
     );
   }
@@ -622,9 +626,17 @@ class _OfferRouteRow extends StatelessWidget {
 
 // ─── Активная поездка ──────────────────────────────────────────────────────
 class _ActiveRideCard extends StatelessWidget {
+  final TaxiOrder order;
+  const _ActiveRideCard({required this.order});
+
   @override
   Widget build(BuildContext context) {
     final state = context.read<AppState>();
+    final (title, action) = switch (order.status) {
+      'arrived' => ('Ждёте клиента', 'Поехали'),
+      'riding'  => ('В пути', 'Завершить'),
+      _         => ('Едете к клиенту', 'Я на месте'),
+    };
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
@@ -638,50 +650,71 @@ class _ActiveRideCard extends StatelessWidget {
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text('Активная поездка',
-                  style: TextStyle(
+            children: [
+              Text(title,
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18, fontWeight: FontWeight.w800,
                   )),
-              Text('500 ₸',
-                  style: TextStyle(
+              Text(_priceText(order.price),
+                  style: const TextStyle(
                     color: Color(0xFF2DB896),
                     fontSize: 18, fontWeight: FontWeight.w800,
                   )),
             ],
           ),
+          const SizedBox(height: 6),
+          Text(
+            '${order.clientName.isEmpty ? 'Клиент' : order.clientName} · '
+            '${order.payment == 'kaspi' ? 'Kaspi' : 'Наличные'}',
+            style: const TextStyle(color: Color(0xFFA3ABB6), fontSize: 14),
+          ),
           const SizedBox(height: 12),
-          const _OfferRoute(
-              from: 'ул. Молдагуловой, 12',
-              to: 'Больница'),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF2F4F7),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: _OfferRoute(from: order.from, to: order.to),
+          ),
+          if (order.status == 'arrived' && order.clientComingOut) ...[
+            const SizedBox(height: 10),
+            const Text('Клиент выходит',
+                style: TextStyle(
+                  color: Color(0xFF2DB896),
+                  fontSize: 15, fontWeight: FontWeight.w700,
+                )),
+          ],
           const SizedBox(height: 14),
           Row(
             children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {},
-                  child: Container(
-                    height: 54,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2DB896).withOpacity(.12),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                          color: const Color(0xFF24614F)),
+              if (order.status != 'riding') ...[
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => state.driverCancel(),
+                    child: Container(
+                      height: 54,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1F232A),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFF2A2F37)),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Text('Отменить',
+                          style: TextStyle(
+                            color: Color(0xFFD93F44),
+                            fontSize: 16, fontWeight: FontWeight.w700,
+                          )),
                     ),
-                    alignment: Alignment.center,
-                    child: const Text('Я на месте',
-                        style: TextStyle(
-                          color: Color(0xFF2DB896),
-                          fontSize: 16, fontWeight: FontWeight.w700,
-                        )),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
+                const SizedBox(width: 8),
+              ],
               Expanded(
+                flex: 2,
                 child: GestureDetector(
-                  onTap: () => state.setDriverState(DriverState.waiting),
+                  onTap: () => state.advanceRide(),
                   child: Container(
                     height: 54,
                     decoration: BoxDecoration(
@@ -689,8 +722,8 @@ class _ActiveRideCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(16),
                     ),
                     alignment: Alignment.center,
-                    child: const Text('Завершить',
-                        style: TextStyle(
+                    child: Text(action,
+                        style: const TextStyle(
                           color: Color(0xFF06231C),
                           fontSize: 16, fontWeight: FontWeight.w700,
                         )),
