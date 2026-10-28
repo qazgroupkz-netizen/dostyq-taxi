@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import '../state.dart';
 import '../theme.dart';
 import '../widgets/mock_map.dart';
 import '../services/phone_auth.dart' as phone_web;
 
 class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key});
+  final bool nameOnly;
+  const AuthScreen({super.key, this.nameOnly = false});
   @override
   State<AuthScreen> createState() => _AuthScreenState();
 }
@@ -18,7 +21,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final _nameCtrl  = TextEditingController();
 
   bool _codeSent  = false;
-  bool _nameStep  = false;
+  late bool _nameStep = widget.nameOnly;
   bool _loading   = false;
   String? _error;
 
@@ -116,12 +119,18 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() { _loading = true; _error = null; });
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-      'name': _nameCtrl.text.trim(),
-      'phone': user.phoneNumber ?? _fullPhone,
-      'role': 'client',
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'name': _nameCtrl.text.trim(),
+        'phone': user.phoneNumber ?? _fullPhone,
+        'role': 'client',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      if (mounted) setState(() { _error = 'Не удалось сохранить: $e'; _loading = false; });
+      return;
+    }
+    if (mounted) await context.read<AppState>().reloadProfile();
   }
 
   String _errMsg(String code) {

@@ -10,10 +10,12 @@ enum Tariff { local, border, whole, delivery }
 class AppState extends ChangeNotifier {
   AppState({OrderRepository? orders})
       : orders = orders ?? FirestoreOrderRepository() {
-    _authSub = FirebaseAuth.instance.authStateChanges().listen((u) async {
+    _authSub = FirebaseAuth.instance.authStateChanges().listen((u) {
       uid = u?.uid;
-      userName = u == null ? '' : await this.orders.userName(u.uid);
+      userName = '';
+      profileLoaded = false;
       notifyListeners();
+      if (u != null) reloadProfile();
     });
   }
 
@@ -21,6 +23,20 @@ class AppState extends ChangeNotifier {
   StreamSubscription<User?>? _authSub;
   String? uid;
   String userName = '';
+  bool profileLoaded = false;
+
+  Future<void> reloadProfile() async {
+    final id = uid;
+    if (id == null) return;
+    try {
+      userName = await orders.userName(id);
+    } catch (_) {
+      userName = '';
+    }
+    if (id != uid) return;
+    profileLoaded = true;
+    notifyListeners();
+  }
 
   Future<String> _myName() async {
     if (userName.isEmpty && uid != null) userName = await orders.userName(uid!);
@@ -79,15 +95,21 @@ class AppState extends ChangeNotifier {
   Future<void> placeOrder() async {
     if (uid == null) return;
     setClientState(ClientState.seek);
-    final id = await orders.create(
-      clientId: uid!,
-      clientName: await _myName(),
-      from: fromAddress,
-      to: destination,
-      tariff: tariff.name,
-      price: tariffPriceInt,
-      payment: paymentMethod,
-    );
+    final String id;
+    try {
+      id = await orders.create(
+        clientId: uid!,
+        clientName: await _myName(),
+        from: fromAddress,
+        to: destination,
+        tariff: tariff.name,
+        price: tariffPriceInt,
+        payment: paymentMethod,
+      );
+    } catch (_) {
+      setClientState(ClientState.home);
+      rethrow;
+    }
     if (clientState != ClientState.seek) {
       await orders.setStatus(id, 'cancelled');
       return;

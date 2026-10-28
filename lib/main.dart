@@ -39,16 +39,15 @@ class DostyqApp extends StatelessWidget {
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(
-                  color: Color(0xFF0E7C66),
-                ),
-              ),
-            );
-          }
+          const loading = Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(color: Color(0xFF0E7C66)),
+            ),
+          );
+          if (snap.connectionState == ConnectionState.waiting) return loading;
           if (snap.data == null) return const AuthScreen();
+          if (!state.profileLoaded) return loading;
+          if (state.userName.isEmpty) return const AuthScreen(nameOnly: true);
           return state.isDriverMode
               ? const DriverScreen()
               : const ClientScreen();

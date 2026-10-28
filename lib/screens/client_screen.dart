@@ -555,7 +555,13 @@ class _HomePanel extends StatelessWidget {
                 fullscreenDialog: true),
           );
         } else {
-          state.placeOrder();
+          final messenger = ScaffoldMessenger.of(context);
+          state.placeOrder().catchError((Object e) {
+            messenger.showSnackBar(SnackBar(
+              content: Text('Не удалось отправить заказ: $e'),
+              duration: const Duration(seconds: 6),
+            ));
+          });
         }
       },
     );
