@@ -3,6 +3,7 @@ import 'package:latlong2/latlong.dart';
 import 'places.dart';
 import 'regions.dart';
 import 'settings.dart';
+import 'streets.dart';
 
 /// Районы, настройки (цены, правила) и ориентиры, которые ведёт админ.
 abstract class CatalogRepository {
@@ -14,6 +15,10 @@ abstract class CatalogRepository {
   Stream<TariffSettings> watchSettings(String regionId);
   Future<void> saveSettings(String regionId, TariffSettings s);
   Future<void> saveRoutePrice(String from, String to, RoutePrice p);
+
+  /// Улицы района — одним списком.
+  Stream<List<Street>> watchStreets(String regionId);
+  Future<void> saveStreets(String regionId, List<Street> list);
 
   /// Все места всех районов; пустой список — в базе мест ещё нет.
   Stream<List<Place>> watchPlaces();
@@ -84,6 +89,25 @@ class FirestoreCatalogRepository implements CatalogRepository {
         'routes': {to: p.toMap()},
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+
+  // Улицы района хранятся одним документом settings/streets_<район>: их сотни, а не тысячи.
+  @override
+  Stream<List<Street>> watchStreets(String regionId) =>
+      _settings.doc('streets_$regionId').snapshots().map((d) {
+        final list = [
+          for (final m in (d.data()?['list'] as List?) ?? const [])
+            if (m is Map) Street.fromMap(Map<String, dynamic>.from(m)),
+        ].where((s) => s.name.isNotEmpty).toList();
+        list.sort((a, b) => a.name.compareTo(b.name));
+        return list;
+      });
+
+  @override
+  Future<void> saveStreets(String regionId, List<Street> list) =>
+      _settings.doc('streets_$regionId').set({
+        'list': [for (final s in list) s.toMap()],
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
 
   static Place _fromDoc(QueryDocumentSnapshot<Map<String, dynamic>> d) {
     final m = d.data();

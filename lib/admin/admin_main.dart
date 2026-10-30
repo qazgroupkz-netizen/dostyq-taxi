@@ -18,6 +18,7 @@ import 'intercity_page.dart';
 import 'orders_page.dart';
 import 'places_page.dart';
 import 'regions_page.dart';
+import 'streets_page.dart';
 import 'tariffs_page.dart';
 
 Future<void> main() async {
@@ -145,6 +146,8 @@ class _AdminHomeState extends State<AdminHome> {
         page: DriversPage(), ownerOnly: true),
     (group: 'Настройки', icon: Icons.place_outlined, label: 'Адреса',
         page: PlacesPage(), ownerOnly: true),
+    (group: 'Настройки', icon: Icons.signpost_outlined, label: 'Улицы',
+        page: StreetsPage(), ownerOnly: true),
     (group: 'Настройки', icon: Icons.tune_rounded, label: 'Тарифы и правила',
         page: TariffsPage(), ownerOnly: true),
     (group: 'Настройки', icon: Icons.location_city_rounded, label: 'Районы',

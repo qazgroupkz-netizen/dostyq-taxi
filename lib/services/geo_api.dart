@@ -30,14 +30,7 @@ class GeoApi {
   static Future<String?> reverse(LatLng p) async {
     final key = '${p.latitude.toStringAsFixed(5)},${p.longitude.toStringAsFixed(5)}';
     if (_addrCache.containsKey(key)) return _addrCache[key];
-
-    // Правило Nominatim: не чаще 1 запроса в секунду.
-    final now = DateTime.now();
-    final next = _lastNominatim.add(const Duration(milliseconds: 1100));
-    final slot = next.isAfter(now) ? next : now;
-    _lastNominatim = slot;
-    if (slot.isAfter(now)) await Future<void>.delayed(slot.difference(now));
-
+    await _waitTurn();
     try {
       final uri = Uri.https('nominatim.openstreetmap.org', '/reverse', {
         'lat': '${p.latitude}',
@@ -62,6 +55,39 @@ class GeoApi {
       }
       _addrCache[key] = label;
       return label;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Правило Nominatim: не чаще 1 запроса в секунду.
+  static Future<void> _waitTurn() async {
+    final now = DateTime.now();
+    final next = _lastNominatim.add(const Duration(milliseconds: 1100));
+    final slot = next.isAfter(now) ? next : now;
+    _lastNominatim = slot;
+    if (slot.isAfter(now)) await Future<void>.delayed(slot.difference(now));
+  }
+
+  /// Точка по адресу рядом с [near] (в пределах ~10 км). null — не нашли.
+  static Future<LatLng?> search(String query, LatLng near) async {
+    await _waitTurn();
+    try {
+      const d = 0.1;
+      final uri = Uri.https('nominatim.openstreetmap.org', '/search', {
+        'q': query,
+        'format': 'jsonv2',
+        'limit': '1',
+        'viewbox': '${near.longitude - d},${near.latitude + d},${near.longitude + d},${near.latitude - d}',
+        'bounded': '1',
+        'accept-language': 'ru',
+      });
+      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) return null;
+      final list = jsonDecode(utf8.decode(res.bodyBytes)) as List;
+      if (list.isEmpty) return null;
+      final j = list.first as Map<String, dynamic>;
+      return LatLng(double.parse('${j['lat']}'), double.parse('${j['lon']}'));
     } catch (_) {
       return null;
     }
