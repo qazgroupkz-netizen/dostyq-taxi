@@ -492,12 +492,14 @@ class _HomePanel extends StatelessWidget {
             physics: const ClampingScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 16),
             separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemCount: _chipPlaces.length,
+            itemCount: _chips.length,
             itemBuilder: (_, i) {
-              final p = _chipPlaces[i];
+              final (label, color, icon, places) = _chips[i];
               return _QuickChip(
-                label: p.name, color: p.color, icon: p.icon,
-                onTap: () => state.setDestination(p.name, p.point),
+                label: label, color: color, icon: icon,
+                onTap: () => places.length == 1
+                    ? state.setDestination(places.first.name, places.first.point)
+                    : _choosePlace(context, label, places),
               );
             },
           ),
@@ -2148,8 +2150,87 @@ class _WishSheet extends StatelessWidget {
   }
 }
 
-// ─── Быстрые чипы ───────────────────────────────────────────────────────────
-final _chipPlaces = dostykPlaces.where((p) => p.chip).toList();
+// ─── Быстрые чипы: одиночные места и группы (одна «Школа» на все школы) ──────
+final _chips = () {
+  final out = <(String, Color, IconData, List<Place>)>[];
+  final seen = <String>{};
+  for (final p in dostykPlaces.where((p) => p.chip)) {
+    final g = p.group;
+    if (g == null) {
+      out.add((p.name, p.color, p.icon, [p]));
+    } else if (seen.add(g)) {
+      out.add((placeGroups[g] ?? p.name, p.color, p.icon,
+          dostykPlaces.where((x) => x.group == g).toList()));
+    }
+  }
+  return out;
+}();
+
+void _choosePlace(BuildContext context, String title, List<Place> places) {
+  final state = context.read<AppState>();
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) => Container(
+      decoration: BoxDecoration(
+        color: ctx.paper,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: EdgeInsets.fromLTRB(0, 10, 0, MediaQuery.of(ctx).padding.bottom + 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40, height: 5,
+              decoration: BoxDecoration(
+                color: ctx.line2C,
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+            child: Text('$title — какая?',
+                style: TextStyle(
+                  color: ctx.ink,
+                  fontSize: 20, fontWeight: FontWeight.w800,
+                )),
+          ),
+          for (final p in places)
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+              leading: Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  color: p.color.withOpacity(.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(p.icon, color: p.color, size: 22),
+              ),
+              title: Text(p.name,
+                  style: TextStyle(
+                    color: ctx.ink, fontSize: 16, fontWeight: FontWeight.w600,
+                  )),
+              subtitle: Text(p.sub,
+                  style: TextStyle(color: ctx.muted, fontSize: 13)),
+              trailing: Text(
+                formatDistance(Distance()(state.pickup, p.point)),
+                style: TextStyle(
+                  color: ctx.muted, fontSize: 13, fontWeight: FontWeight.w600,
+                ),
+              ),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                state.setDestination(p.name, p.point);
+              },
+            ),
+        ],
+      ),
+    ),
+  );
+}
 
 void openSearch(BuildContext context, {bool forFrom = false}) {
   Navigator.of(context).push(MaterialPageRoute(

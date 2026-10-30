@@ -12,6 +12,9 @@ class Place {
   final List<String> synonyms;
   final bool chip;
 
+  /// Места одной группы (например, все школы) — одна кнопка-чип со списком.
+  final String? group;
+
   /// Координаты примерные: в OpenStreetMap этого места нет, нужно уточнить на месте.
   final bool approx;
 
@@ -24,9 +27,12 @@ class Place {
     required this.point,
     this.synonyms = const [],
     this.chip = false,
+    this.group,
     this.approx = false,
   });
 }
+
+const placeGroups = {'school': 'Школа'};
 
 // Координаты взяты из OpenStreetMap (кроме approx).
 const dostykPlaces = <Place>[
@@ -76,12 +82,27 @@ const dostykPlaces = <Place>[
     synonyms: ['рынок', 'нарык', 'базар'],
     chip: true,
   ),
+  // В OSM отмечена одна школа («Школа с. Достык», ул. Молдагулова) — считаем её «Достық».
   Place(
-    id: 'school', name: 'Школа', sub: 'Школа с. Достык · ул. Молдагулова',
+    id: 'school-dostyq', name: 'Достық орта мектебі', sub: 'Школа «Достық» · ул. Молдагулова',
     icon: Icons.school_outlined, color: Color(0xFFD97A00),
     point: LatLng(45.25306, 82.49387),
-    synonyms: ['мектеп', 'сш'],
-    chip: true,
+    synonyms: ['школа', 'мектеп', 'сш', 'достык', 'средняя школа'],
+    chip: true, group: 'school',
+  ),
+  Place(
+    id: 'school-keleshek', name: 'Школа «Келешек»', sub: 'Келешек · место уточняется',
+    icon: Icons.school_outlined, color: Color(0xFFD97A00),
+    point: LatLng(45.25850, 82.48950),
+    synonyms: ['школа', 'мектеп', 'келешек', 'kelechek'],
+    chip: true, group: 'school', approx: true,
+  ),
+  Place(
+    id: 'school-momyshuly', name: 'Школа им. Б. Момышұлы', sub: 'Место уточняется',
+    icon: Icons.school_outlined, color: Color(0xFFD97A00),
+    point: LatLng(45.25400, 82.49600),
+    synonyms: ['школа', 'мектеп', 'момышулы', 'момышұлы', 'бауыржан'],
+    chip: true, group: 'school', approx: true,
   ),
   Place(
     id: 'post', name: 'Почта', sub: 'Казпочта · место уточняется',
