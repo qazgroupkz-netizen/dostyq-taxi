@@ -21,7 +21,7 @@ class GeoApi {
   // Браузер не даёт сайту менять User-Agent, там Nominatim узнаёт нас по адресу сайта.
   static const _headers = kIsWeb
       ? <String, String>{}
-      : {'User-Agent': 'DOSTYQ-TAXI/1.0 (kz.dostyq.taxi)'};
+      : {'User-Agent': 'ALAKOL-TAXI/1.0 (kz.dostyq.taxi)'};
 
   static DateTime _lastNominatim = DateTime.fromMillisecondsSinceEpoch(0);
   static final _addrCache = <String, String?>{};

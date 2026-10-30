@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import '../data/places.dart';
+import '../config.dart';
 import '../state.dart';
 import '../theme.dart';
 import 'package:flutter_map/flutter_map.dart' show MapController, CameraFit;
@@ -285,16 +286,31 @@ class _ClientScreenState extends State<ClientScreen> {
                       ),
                     ),
                     const SizedBox(width: 9),
-                    Text(
-                      state.regions.length > 1
-                          ? state.region.name
-                          : 'DOSTYQ TAXI',
-                      style: TextStyle(
-                        color: context.ink,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -.01 * 14,
-                      ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          kBrand,
+                          style: TextStyle(
+                            color: context.muted,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: .08 * 9.5,
+                            height: 1.1,
+                          ),
+                        ),
+                        Text(
+                          state.region.name,
+                          style: TextStyle(
+                            color: context.ink,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -.01 * 14,
+                            height: 1.15,
+                          ),
+                        ),
+                      ],
                     ),
                     if (isHome && state.regions.length > 1)
                       Icon(Icons.keyboard_arrow_down_rounded,

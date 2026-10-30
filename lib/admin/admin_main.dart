@@ -8,6 +8,7 @@ import '../data/orders.dart';
 import '../firebase_options.dart';
 import '../services/sound.dart';
 import '../screens/auth_screen.dart';
+import '../config.dart';
 import '../state.dart';
 import '../theme.dart';
 import 'dispatch_page.dart';
@@ -35,7 +36,7 @@ class AdminApp extends StatelessWidget {
     final hasName = context.select<AppState, bool>((s) => s.userName.isNotEmpty);
     final isAdmin = context.select<AppState, bool>((s) => s.isAdmin);
     return MaterialApp(
-      title: 'DOSTYQ TAXI · Админ',
+      title: '$kBrand · Админ',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.admin(),
       builder: (context, child) => Listener(
@@ -320,7 +321,7 @@ class _Sidebar extends StatelessWidget {
                   const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('DOSTYQ TAXI',
+                      Text(kBrand,
                           style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
                       Text('Админ-панель',
                           style: TextStyle(color: AdminC.sideMuted, fontSize: 12, fontWeight: FontWeight.w600)),

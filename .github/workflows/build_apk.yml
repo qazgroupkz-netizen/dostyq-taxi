@@ -47,6 +47,7 @@ jobs:
           sed -i 's/applicationId = "kz.dostyq.dostyq_taxi"/applicationId = "kz.dostyq.taxi"/' android/app/build.gradle
           sed -i 's/namespace "kz.dostyq.dostyq_taxi"/namespace "kz.dostyq.taxi"/' android/app/build.gradle
           sed -i 's/kz.dostyq.dostyq_taxi/kz.dostyq.taxi/g' android/app/src/main/AndroidManifest.xml
+          sed -i 's/android:label="[^"]*"/android:label="ALAKOL TAXI"/' android/app/src/main/AndroidManifest.xml
 
       - name: Fix Kotlin package
         run: |
@@ -103,6 +104,12 @@ jobs:
             --org kz.dostyq \
             --platforms web \
             .
+
+      - name: Brand name in browser tab and home screen
+        run: |
+          sed -i 's|<title>.*</title>|<title>ALAKOL TAXI</title>|; s|apple-mobile-web-app-title" content="[^"]*"|apple-mobile-web-app-title" content="ALAKOL TAXI"|' web/index.html
+          sed -i 's/"name": "[^"]*"/"name": "ALAKOL TAXI"/; s/"short_name": "[^"]*"/"short_name": "ALAKOL TAXI"/' web/manifest.json
+          grep -q 'ALAKOL TAXI' web/index.html || { echo 'title patch failed'; cat web/index.html; exit 1; }
 
       - run: flutter pub get
 

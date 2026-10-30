@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
+import '../config.dart';
 import '../state.dart';
 import '../theme.dart';
 import '../widgets/ornament_icon.dart';
@@ -162,7 +163,7 @@ class _AuthScreenState extends State<AuthScreen> {
               child: OrnamentIcon(size: 34, color: context.onTaxi),
             ),
             const SizedBox(height: 22),
-            Text('DOSTYQ TAXI',
+            Text(kBrand,
                 style: TextStyle(
                   color: context.accent,
                   fontSize: 13, fontWeight: FontWeight.w700,

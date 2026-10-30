@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'config.dart';
 import 'state.dart';
 import 'theme.dart';
 import 'firebase_options.dart';
@@ -36,7 +37,7 @@ class DostyqApp extends StatelessWidget {
     final profileLoaded = context.select<AppState, bool>((s) => s.profileLoaded);
     final hasName = context.select<AppState, bool>((s) => s.userName.isNotEmpty);
     return MaterialApp(
-      title: 'DOSTYQ TAXI',
+      title: kBrand,
       debugShowCheckedModeBanner: false,
       themeMode: themeMode,
       builder: (context, child) => Listener(

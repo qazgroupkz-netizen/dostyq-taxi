@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../data/drivers.dart';
+import '../config.dart';
 import '../state.dart';
 import '../theme.dart';
 
@@ -272,7 +273,7 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
                       icon: Icons.block_rounded,
                       color: context.danger,
                       title: 'Аккаунт водителя заблокирован',
-                      text: 'Свяжитесь с поддержкой DOSTYQ TAXI.',
+                      text: 'Свяжитесь с поддержкой $kBrand.',
                     ),
                   if (showForm) body,
                   if (showForm && _error != null)
