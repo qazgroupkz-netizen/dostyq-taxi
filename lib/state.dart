@@ -600,7 +600,19 @@ class AppState extends ChangeNotifier {
 
   bool get isFarTrip => (tripMeters ?? 0) > localFarMeters;
 
-  int get localPriceInt => isFarTrip ? localFarPrice : localPrice;
+  // До Таможни/КПП и обратно — своя цена, вместо «дальше 3 км».
+  static const kppPrice = 1500;
+
+  bool get isKppTrip {
+    final to = destPoint;
+    if (to == null) return false;
+    final kpp = dostykPlaces.firstWhere((p) => p.id == 'kpp').point;
+    final d = Distance();
+    return d(to, kpp) < 500 || d(pickup, kpp) < 500;
+  }
+
+  int get localPriceInt =>
+      isKppTrip ? kppPrice : isFarTrip ? localFarPrice : localPrice;
 
   String get tariffPrice => formatPrice(tariffPriceInt);
 

@@ -1600,7 +1600,11 @@ class _TariffCard extends StatelessWidget {
     if (tariff == Tariff.local) {
       final state = context.watch<AppState>();
       price = formatPrice(state.localPriceInt);
-      if (state.isFarTrip) note = 'дальше 3 км';
+      if (state.isKppTrip) {
+        note = 'Таможня · КПП';
+      } else if (state.isFarTrip) {
+        note = 'дальше 3 км';
+      }
     }
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
