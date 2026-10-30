@@ -1,5 +1,24 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Предложение цены водителем (грузовое, как в inDrive).
+class Bid {
+  final String driverId;
+  final String driverName;
+  final String car;
+  final String plate;
+  final int price;
+  final DateTime? at;
+
+  const Bid({
+    required this.driverId,
+    required this.driverName,
+    required this.car,
+    required this.plate,
+    required this.price,
+    this.at,
+  });
+}
+
 class TaxiOrder {
   final String id;
   final String status;
@@ -8,6 +27,10 @@ class TaxiOrder {
   final String clientPhone;
   final String createdBy;
   final String comment;
+
+  /// Цена, которую предложил клиент (грузовое); null — пусть предложат водители.
+  final int? clientPrice;
+  final List<Bid> bids;
   final String from;
   final double? fromLat;
   final double? fromLng;
@@ -31,6 +54,8 @@ class TaxiOrder {
     this.clientPhone = '',
     this.createdBy = 'app',
     this.comment = '',
+    this.clientPrice,
+    this.bids = const [],
     required this.from,
     this.fromLat,
     this.fromLng,
@@ -65,6 +90,7 @@ abstract class OrderRepository {
     String clientPhone = '',
     String createdBy = 'app',
     String comment = '',
+    int? clientPrice,
   });
 
   Stream<TaxiOrder?> watch(String id);
@@ -82,6 +108,12 @@ abstract class OrderRepository {
       {required String driverId, required String driverName, String? car, String? plate});
 
   Future<void> setStatus(String id, String status);
+
+  /// Водитель предлагает свою цену (грузовое).
+  Future<void> placeBid(String id, Bid bid);
+
+  /// Клиент выбрал предложение. false — заказ уже взят или отменён.
+  Future<bool> chooseBid(String id, Bid bid);
 
   /// Водитель отказался от принятого заказа: заказ снова ищет машину, ему больше не предлагается.
   Future<void> release(String id, String driverId);
@@ -107,6 +139,25 @@ class FirestoreOrderRepository implements OrderRepository {
   final _db = FirebaseFirestore.instance;
   CollectionReference<Map<String, dynamic>> get _orders => _db.collection('orders');
 
+  static List<Bid> _bidsOf(Object? v) {
+    if (v is! Map) return const [];
+    final list = <Bid>[];
+    for (final e in v.entries) {
+      final b = e.value;
+      if (b is! Map) continue;
+      list.add(Bid(
+        driverId: e.key as String,
+        driverName: b['driverName'] as String? ?? '',
+        car: b['car'] as String? ?? '',
+        plate: b['plate'] as String? ?? '',
+        price: (b['price'] as num?)?.toInt() ?? 0,
+        at: (b['at'] as Timestamp?)?.toDate(),
+      ));
+    }
+    list.sort((a, b) => a.price.compareTo(b.price));
+    return list;
+  }
+
   static TaxiOrder _fromDoc(DocumentSnapshot<Map<String, dynamic>> d) {
     final m = d.data() ?? const {};
     String label(Object? v) => v is Map ? (v['label'] as String? ?? '') : '';
@@ -120,6 +171,8 @@ class FirestoreOrderRepository implements OrderRepository {
       clientPhone: m['clientPhone'] as String? ?? '',
       createdBy: m['createdBy'] as String? ?? 'app',
       comment: m['comment'] as String? ?? '',
+      clientPrice: (m['clientPrice'] as num?)?.toInt(),
+      bids: _bidsOf(m['bids']),
       from: label(m['from']),
       fromLat: coord(m['from'], 'lat'),
       fromLng: coord(m['from'], 'lng'),
@@ -152,6 +205,7 @@ class FirestoreOrderRepository implements OrderRepository {
     String clientPhone = '',
     String createdBy = 'app',
     String comment = '',
+    int? clientPrice,
   }) async {
     final ref = await _orders.add({
       'clientId': clientId,
@@ -174,6 +228,7 @@ class FirestoreOrderRepository implements OrderRepository {
       'status': 'searching',
       'createdBy': createdBy,
       if (comment.isNotEmpty) 'comment': comment,
+      if (clientPrice != null) 'clientPrice': clientPrice,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -223,6 +278,37 @@ class FirestoreOrderRepository implements OrderRepository {
         'driverName': driverName,
         if (car != null) 'driverCar': car,
         if (plate != null) 'driverPlate': plate,
+        'acceptedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return true;
+    });
+  }
+
+  @override
+  Future<void> placeBid(String id, Bid b) => _orders.doc(id).update({
+        'bids.${b.driverId}': {
+          'driverName': b.driverName,
+          'car': b.car,
+          'plate': b.plate,
+          'price': b.price,
+          'at': FieldValue.serverTimestamp(),
+        },
+      });
+
+  @override
+  Future<bool> chooseBid(String id, Bid b) {
+    final ref = _orders.doc(id);
+    return _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (snap.data()?['status'] != 'searching') return false;
+      tx.update(ref, {
+        'status': 'accepted',
+        'driverId': b.driverId,
+        'driverName': b.driverName,
+        'driverCar': b.car,
+        'driverPlate': b.plate,
+        'price': b.price,
         'acceptedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });

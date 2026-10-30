@@ -191,6 +191,9 @@ class AppState extends ChangeNotifier {
   /// Что везти / что купить — для грузового и доставки.
   String orderComment = '';
 
+  /// Цена клиента для грузового (как в inDrive); null — пусть предложат водители.
+  int? orderClientPrice;
+
   // ─── UI ─────────────────────────────────────────────────────────────────
   bool sheetExpanded = true;
 
@@ -465,10 +468,11 @@ class AppState extends ChangeNotifier {
             : (lat: destPoint!.latitude, lng: destPoint!.longitude),
         region: regionId,
         tariff: tariff.name,
-        price: tariffPriceInt,
+        price: tariff == Tariff.cargo ? (orderClientPrice ?? 0) : tariffPriceInt,
         payment: paymentMethod,
         clientPhone: FirebaseAuth.instance.currentUser?.phoneNumber ?? '',
         comment: orderComment,
+        clientPrice: tariff == Tariff.cargo ? orderClientPrice : null,
       );
     } catch (_) {
       setClientState(ClientState.home);
@@ -479,13 +483,19 @@ class AppState extends ChangeNotifier {
       return;
     }
     activeOrderId = id;
+    _seenBids = 0;
     _clientOrderSub?.cancel();
     _clientOrderSub = orders.watch(id).listen(_onClientOrder);
   }
 
+  int _seenBids = 0;
+
   void _onClientOrder(TaxiOrder? o) {
     if (o == null) return;
     activeOrder = o;
+    // Новое предложение цены от грузового водителя — сигнал клиенту.
+    if (o.status == 'searching' && o.bids.length > _seenBids) playAlert();
+    _seenBids = o.bids.length;
     final next = switch (o.status) {
       'accepted'  => ClientState.coming,
       'arrived'   => ClientState.arrived,
@@ -533,6 +543,13 @@ class AppState extends ChangeNotifier {
     if (id != null) await orders.setStatus(id, 'cancelled');
   }
 
+  /// Клиент выбрал предложение водителя (грузовое).
+  Future<bool> chooseBid(Bid b) async {
+    final id = activeOrderId;
+    if (id == null) return false;
+    return orders.chooseBid(id, b);
+  }
+
   Future<void> markComingOut() async {
     final id = activeOrderId;
     if (id != null) await orders.update(id, {'clientComingOut': true});
@@ -564,7 +581,9 @@ class AppState extends ChangeNotifier {
     final cargo = myDriver?.vehicle == 'cargo';
     for (final o in _searching) {
       if ((o.tariff == 'cargo') != cargo) continue;
-      if (!_skipped.contains(o.id) && !o.declinedBy.contains(uid)) return o;
+      if (!_skipped.contains(o.id) && !_bidded.contains(o.id) && !o.declinedBy.contains(uid)) {
+        return o;
+      }
     }
     return null;
   }
@@ -715,6 +734,24 @@ class AppState extends ChangeNotifier {
     if (uid == null || now.difference(_lastGpsSent).inSeconds < 4) return;
     _lastGpsSent = now;
     orders.updateDriverLocation(uid!, (lat: p.latitude, lng: p.longitude));
+  }
+
+  /// Грузовые заказы, где водитель уже предложил цену и ждёт ответа клиента.
+  final Set<String> _bidded = {};
+  int get waitingBids => _searching.where((o) => _bidded.contains(o.id)).length;
+
+  Future<void> placeBid(TaxiOrder o, int price) async {
+    final me = uid;
+    if (me == null) return;
+    _bidded.add(o.id);
+    notifyListeners();
+    await orders.placeBid(o.id, Bid(
+      driverId: me,
+      driverName: myDriver?.name.isNotEmpty == true ? myDriver!.name : await _myName(),
+      car: myDriver?.car ?? '',
+      plate: myDriver?.plate ?? '',
+      price: price,
+    ));
   }
 
   void skipOffer(String id) {

@@ -155,6 +155,20 @@ class _DriverBody extends StatelessWidget {
 
                         const SizedBox(height: 16),
 
+                        if (state.driverOrder == null && state.waitingBids > 0)
+                          Container(
+                            margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1F232A),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Text(
+                              'Ваши цены отправлены (${state.waitingBids}). Если клиент выберет вас — заказ откроется со звуком.',
+                              style: const TextStyle(color: Color(0xFF7FDCC4), fontSize: 13.5, height: 1.4),
+                            ),
+                          ),
+
                         // Активный заказ или ожидание
                         if (state.driverOrder != null)
                           _ActiveRideCard(order: state.driverOrder!)
@@ -678,13 +692,21 @@ class _OfferCard extends StatefulWidget {
 }
 
 class _OfferCardState extends State<_OfferCard> {
-  late int _total = context.read<AppState>().settings.offerSeconds;
+  // Грузовое — торг, даём больше времени подумать над ценой.
+  late int _total = widget.order.tariff == 'cargo'
+      ? 60
+      : context.read<AppState>().settings.offerSeconds;
   late int _secs = _total;
   Timer? _timer;
+  final _price = TextEditingController();
+
+  bool get _cargo => widget.order.tariff == 'cargo';
 
   @override
   void initState() {
     super.initState();
+    final suggest = widget.order.clientPrice ?? context.read<AppState>().settings.cargoPrice;
+    _price.text = '$suggest';
     playAlert();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
@@ -698,7 +720,14 @@ class _OfferCardState extends State<_OfferCard> {
   }
 
   @override
-  void dispose() { _timer?.cancel(); super.dispose(); }
+  void dispose() { _timer?.cancel(); _price.dispose(); super.dispose(); }
+
+  void _bid(AppState state) {
+    final p = int.tryParse(_price.text.replaceAll(RegExp(r'\D'), ''));
+    if (p == null || p <= 0) return;
+    _timer?.cancel();
+    state.placeBid(widget.order, p);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -720,12 +749,19 @@ class _OfferCardState extends State<_OfferCard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(_priceText(order.price),
-                  style: const TextStyle(
-                    color: Color(0xFF14171F),
-                    fontSize: 28, fontWeight: FontWeight.w800,
-                    letterSpacing: -.03 * 28,
-                  )),
+              Flexible(
+                child: Text(
+                    _cargo
+                        ? (order.clientPrice == null
+                            ? 'Цену предложите вы'
+                            : 'Клиент: ${_priceText(order.clientPrice!)}')
+                        : _priceText(order.price),
+                    style: TextStyle(
+                      color: const Color(0xFF14171F),
+                      fontSize: _cargo ? 20 : 28, fontWeight: FontWeight.w800,
+                      letterSpacing: -.03 * 28,
+                    )),
+              ),
               Row(
                 children: [
                   Container(
@@ -784,6 +820,47 @@ class _OfferCardState extends State<_OfferCard> {
                   color: Color(0xFF14171F), fontSize: 15, fontWeight: FontWeight.w700,
                 )),
           ],
+          if (_cargo) ...[
+            const SizedBox(height: 14),
+            const Text('Ваша цена',
+                style: TextStyle(color: Color(0xFF5E6571), fontSize: 13, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _price,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(
+                      color: Color(0xFF14171F), fontSize: 22, fontWeight: FontWeight.w800,
+                    ),
+                    decoration: InputDecoration(
+                      suffixText: '₸',
+                      filled: true,
+                      fillColor: Colors.white,
+                      isDense: true,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                for (final add in const [500, 1000])
+                  Padding(
+                    padding: const EdgeInsets.only(left: 6),
+                    child: OutlinedButton(
+                      onPressed: () {
+                        final p = int.tryParse(_price.text.replaceAll(RegExp(r'\D'), '')) ?? 0;
+                        setState(() => _price.text = '${p + add}');
+                      },
+                      child: Text('+$add'),
+                    ),
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 14),
           // Кнопки
           Row(
@@ -813,6 +890,10 @@ class _OfferCardState extends State<_OfferCard> {
                 flex: 2,
                 child: GestureDetector(
                   onTap: () {
+                    if (_cargo) {
+                      _bid(state);
+                      return;
+                    }
                     _timer?.cancel();
                     state.acceptOffer(order);
                   },
@@ -823,8 +904,8 @@ class _OfferCardState extends State<_OfferCard> {
                       borderRadius: BorderRadius.circular(16),
                     ),
                     alignment: Alignment.center,
-                    child: const Text('Принять',
-                        style: TextStyle(
+                    child: Text(_cargo ? 'Предложить цену' : 'Принять',
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16, fontWeight: FontWeight.w700,
                         )),

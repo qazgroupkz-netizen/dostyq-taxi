@@ -81,6 +81,11 @@ class OrderRow extends StatelessWidget {
               if (o.tariff == 'cargo' || o.tariff == 'delivery')
                 Text(o.tariff == 'cargo' ? 'Грузовое' : 'Доставка',
                     style: TextStyle(color: context.ink, fontSize: 12.5, fontWeight: FontWeight.w700)),
+              if (o.tariff == 'cargo' && o.status == 'searching')
+                Text(o.bids.isEmpty
+                        ? 'предложений нет'
+                        : 'предложений: ${o.bids.length}, от ${o.bids.first.price} ₸',
+                    style: TextStyle(color: context.muted, fontSize: 12.5)),
               if (o.comment.isNotEmpty)
                 Text('«${o.comment}»', style: TextStyle(color: context.ink2, fontSize: 12.5)),
               if (o.createdBy == 'manager')

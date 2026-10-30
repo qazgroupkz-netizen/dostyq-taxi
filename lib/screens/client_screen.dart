@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
+import '../data/orders.dart';
 import '../data/places.dart';
 import '../config.dart';
 import '../state.dart';
@@ -663,7 +664,8 @@ class _HomePanel extends StatelessWidget {
     };
     return _CtaButton(
       label: label,
-      sub: state.destination.isEmpty ? null : state.tariffPrice,
+      // Грузовое — цену предлагают водители.
+      sub: state.destination.isEmpty || state.tariff == Tariff.cargo ? null : state.tariffPrice,
       onTap: () async {
         if (state.destination.isEmpty) {
           openSearch(context);
@@ -671,11 +673,13 @@ class _HomePanel extends StatelessWidget {
         }
         final messenger = ScaffoldMessenger.of(context);
         if (needsWhat) {
-          final what = await _askWhat(context, state.tariff == Tariff.cargo);
-          if (what == null) return;
-          state.orderComment = what;
+          final res = await _askWhat(context, state.tariff == Tariff.cargo);
+          if (res == null) return;
+          state.orderComment = res.$1;
+          state.orderClientPrice = res.$2;
         } else {
           state.orderComment = '';
+          state.orderClientPrice = null;
         }
         state.placeOrder().catchError((Object e) {
           messenger.showSnackBar(SnackBar(
@@ -688,10 +692,11 @@ class _HomePanel extends StatelessWidget {
   }
 
   /// «Что везём» для грузового или «что купить / забрать» для доставки.
-  Future<String?> _askWhat(BuildContext context, bool cargo) {
+  Future<(String, int?)?> _askWhat(BuildContext context, bool cargo) {
     final ctrl = TextEditingController();
+    final priceCtrl = TextEditingController();
     var loaders = false;
-    return showModalBottomSheet<String>(
+    return showModalBottomSheet<(String, int?)>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -734,6 +739,24 @@ class _HomePanel extends StatelessWidget {
                   ),
                 ),
               ),
+              if (cargo) ...[
+                const SizedBox(height: 10),
+                TextField(
+                  controller: priceCtrl,
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(color: ctx.ink, fontSize: 16),
+                  decoration: InputDecoration(
+                    labelText: 'Ваша цена, ₸ (можно не указывать)',
+                    helperText: 'Водители предложат свою цену — вы выберете',
+                    filled: true,
+                    fillColor: ctx.surface,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+              ],
               if (cargo)
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
@@ -744,11 +767,12 @@ class _HomePanel extends StatelessWidget {
                 ),
               const SizedBox(height: 10),
               _CtaButton(
-                label: 'Заказать',
+                label: cargo ? 'Найти грузовую машину' : 'Заказать',
                 onTap: () {
                   final t = ctrl.text.trim();
                   if (t.isEmpty) return;
-                  Navigator.pop(ctx, loaders ? '$t · нужны грузчики' : t);
+                  final p = int.tryParse(priceCtrl.text.replaceAll(RegExp(r'\D'), ''));
+                  Navigator.pop(ctx, (loaders ? '$t · нужны грузчики' : t, p));
                 },
               ),
             ],
@@ -874,6 +898,9 @@ class _SeekPanelState extends State<_SeekPanel>
     final state = context.watch<AppState>();
     final declined = state.activeOrder?.declinedBy.isNotEmpty ?? false;
     final since = state.stateEnteredAt;
+    final order = state.activeOrder;
+    final cargo = order?.tariff == 'cargo' || (order == null && state.tariff == Tariff.cargo);
+    final bids = order?.bids ?? const <Bid>[];
     final noCars = since != null &&
         DateTime.now().difference(since).inMinutes >= state.settings.showAllMinutes;
     return Column(
@@ -912,13 +939,19 @@ class _SeekPanelState extends State<_SeekPanel>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Ищем машину',
+                    Text(cargo ? 'Ждём цены водителей' : 'Ищем машину',
                         style: TextStyle(
                           color: context.ink,
                           fontSize: 22, fontWeight: FontWeight.w800,
                         )),
                     const SizedBox(height: 3),
-                    Text(noCars
+                    Text(cargo
+                            ? (bids.isEmpty
+                                ? (order?.clientPrice != null
+                                    ? 'Ваша цена ${formatPrice(order!.clientPrice!)}. Грузовые машины смотрят заказ'
+                                    : 'Грузовые машины смотрят заказ и предложат цену')
+                                : 'Выберите подходящее предложение')
+                            : noCars
                             ? 'Свободных машин пока нет. Заказ передан менеджеру — он подберёт машину'
                             : declined
                                 ? 'Водитель отказался. Ищем другого'
@@ -941,6 +974,17 @@ class _SeekPanelState extends State<_SeekPanel>
             minHeight: 6,
           ),
         ),
+        if (cargo && bids.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 260),
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              children: [for (final b in bids) _BidTile(bid: b)],
+            ),
+          ),
+        ],
         const SizedBox(height: 14),
         _TripMini(),
         const SizedBox(height: 12),
@@ -954,6 +998,67 @@ class _SeekPanelState extends State<_SeekPanel>
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Предложение водителя по грузовому заказу: имя, машина, цена и «Выбрать».
+class _BidTile extends StatelessWidget {
+  final Bid bid;
+  const _BidTile({required this.bid});
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.read<AppState>();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+      decoration: BoxDecoration(
+        color: context.surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: context.taxiSft,
+            child: Icon(Icons.local_shipping_rounded, color: context.taxi, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(bid.driverName.isEmpty ? 'Водитель' : bid.driverName,
+                    style: TextStyle(color: context.ink, fontSize: 15.5, fontWeight: FontWeight.w700)),
+                Text([bid.car, bid.plate].where((s) => s.isNotEmpty).join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: context.muted, fontSize: 13)),
+              ],
+            ),
+          ),
+          Text(formatPrice(bid.price),
+              style: TextStyle(color: context.ink, fontSize: 17, fontWeight: FontWeight.w800)),
+          const SizedBox(width: 10),
+          FilledButton(
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final ok = await state.chooseBid(bid);
+              if (!ok) {
+                messenger.showSnackBar(const SnackBar(
+                  content: Text('Это предложение уже недоступно'),
+                ));
+              }
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: context.taxi,
+              foregroundColor: context.onTaxi,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Выбрать'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1760,7 +1865,7 @@ class _TariffCard extends StatelessWidget {
       Tariff.border   => ('Ушарал', formatPrice(s.seatPrice), 'за место'),
       Tariff.whole    => ('Вся машина', formatPrice(s.wholeCarPrice), 'до Ушарала'),
       Tariff.delivery => ('Доставка', formatPrice(s.deliveryPrice), 'по посёлку'),
-      Tariff.cargo    => ('Грузовое', formatPrice(s.cargoPrice), 'Газель, грузовик'),
+      Tariff.cargo    => ('Грузовое', 'Торг', 'цену предложат'),
     };
     if (tariff == Tariff.local) {
       price = formatPrice(state.localPriceInt);
