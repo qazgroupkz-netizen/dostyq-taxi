@@ -9,6 +9,11 @@ on:
 permissions:
   contents: write   # нужно для деплоя на GitHub Pages
 
+# Новая сборка отменяет незаконченную старую — иначе обе пушат в gh-pages и одна падает.
+concurrency:
+  group: build-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ── 1. Android APK ─────────────────────────────────────────────
   build-apk:
