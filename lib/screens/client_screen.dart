@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
+import '../data/places.dart';
 import '../state.dart';
 import '../theme.dart';
 import 'package:flutter_map/flutter_map.dart' show MapController, CameraFit;
@@ -26,17 +27,49 @@ class _ClientScreenState extends State<ClientScreen> {
   final _map = MapController();
   String? _fittedOrderId;
   LatLng? _fittedCar;
+  int _fittedRoute = 0;
+  int _movedPickup = 0;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final p = await context.read<AppState>().locateMe();
+      final state = context.read<AppState>();
+      state.resolvePickupAddress();
+      final p = await state.locateMe();
       if (!mounted || p == null) return;
       // Сервис работает только в Достыке: далеко — оставляем центр посёлка.
       if (Distance()(p, dostykCenter) < 30000) _map.move(p, 16);
     });
   }
+
+  void _afterFrame(VoidCallback f) =>
+      WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) f(); });
+
+  EdgeInsets _fitPadding(AppState state) => EdgeInsets.fromLTRB(
+      60, MediaQuery.of(context).padding.top + 110, 60,
+      _bottomSheetHeight(state) + 40);
+
+  void _fitRoute(AppState state) {
+    final r = state.route;
+    if (r == null || state.routeVersion == _fittedRoute) return;
+    _fittedRoute = state.routeVersion;
+    _afterFrame(() => _map.fitCamera(CameraFit.coordinates(
+          coordinates: [...r.points, state.pickup, if (state.destPoint != null) state.destPoint!],
+          maxZoom: 17,
+          padding: _fitPadding(state),
+        )));
+  }
+
+  void _followPickup(AppState state) {
+    if (state.pickupVersion == _movedPickup) return;
+    _movedPickup = state.pickupVersion;
+    if (state.destPoint != null) return;
+    _afterFrame(() => _map.move(state.pickup, _map.camera.zoom < 15 ? 16 : _map.camera.zoom));
+  }
+
+  static String _hm(DateTime t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
   Future<void> _goToMe(AppState state) async {
     final p = await state.locateMe();
@@ -80,6 +113,9 @@ class _ClientScreenState extends State<ClientScreen> {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final isHome = state.clientState == ClientState.home;
+    final picking = isHome && state.pickMode != null;
+    // Булавка подачи в центре, пока не выбрано назначение; потом — метка на месте.
+    final pickupInCenter = isHome && state.destPoint == null && !picking;
     final showCar = state.clientState == ClientState.coming ||
         state.clientState == ClientState.arrived ||
         state.clientState == ClientState.ride;
@@ -87,7 +123,8 @@ class _ClientScreenState extends State<ClientScreen> {
     String? pinLabel;
     switch (state.clientState) {
       case ClientState.home:
-        pinLabel = 'Заберём здесь';
+        final eta = state.pickupEtaMinutes;
+        pinLabel = picking ? null : eta == null ? 'Нет машин рядом' : '~$eta мин';
       case ClientState.seek:
         pinLabel = 'Ищем машину';
       case ClientState.coming:
@@ -103,6 +140,29 @@ class _ClientScreenState extends State<ClientScreen> {
         pinLabel = null;
     }
     if (showCar) _fitCarAndPickup(state);
+    if (isHome && !picking) {
+      _fitRoute(state);
+      _followPickup(state);
+    }
+    // Только вошли в «Указать на карте» — сразу показываем адрес точки под булавкой.
+    if (picking && state.pickPoint == null) {
+      _afterFrame(() => state.updatePick(_map.camera.center));
+    }
+
+    final arrival = state.arrivalTime;
+    final showDest = state.destPoint != null && !picking &&
+        state.clientState != ClientState.rate;
+
+    String? caption;
+    if (pickupInCenter) {
+      caption = state.pickupResolving
+          ? 'Определяем адрес…'
+          : state.pickupNear == null || state.fromAddress.contains(state.pickupNear!)
+              ? state.fromAddress
+              : '${state.fromAddress} · ${state.pickupNear}';
+    } else if (picking) {
+      caption = state.pickAddress ?? (state.pickPoint == null ? null : 'Определяем адрес…');
+    }
 
     return Scaffold(
       key: _scaffoldKey,
@@ -112,12 +172,23 @@ class _ClientScreenState extends State<ClientScreen> {
           // Карта на весь экран
           TaxiMap(
             controller: _map,
-            centerPin: isHome,
+            centerPin: pickupInCenter || picking,
             pinLabel: pinLabel,
-            onCenterChanged: isHome ? state.setPickup : null,
-            pickup: state.clientState == ClientState.rate ? null : state.pickup,
+            pinCaption: caption,
+            onCenterChanged: pickupInCenter
+                ? state.setPickup
+                : picking ? state.updatePick : null,
+            pickup: state.clientState == ClientState.rate || pickupInCenter || picking
+                ? null
+                : state.pickup,
+            dest: showDest ? state.destPoint : null,
+            destLabel: arrival == null ? null : 'Приедете в ${_hm(arrival)}',
+            route: showDest ? state.route?.points : null,
             car: showCar ? state.driverLocation : null,
+            idleCars: isHome ? state.onlineDrivers : const [],
             me: state.myLocation,
+            places: isHome ? dostykPlaces : const [],
+            onPlaceTap: isHome && !picking ? state.selectPlace : null,
           ),
 
           // FAB — Меню
@@ -246,6 +317,10 @@ class _ClientScreenState extends State<ClientScreen> {
   }
 
   double _bottomSheetHeight(AppState state) {
+    if (state.clientState == ClientState.home) {
+      if (state.pickMode != null) return 210;
+      if (state.selectedPlace != null) return 190;
+    }
     if (!state.sheetExpanded) {
       return state.clientState == ClientState.home ? 155.0 : 56.0;
     }
@@ -290,7 +365,9 @@ class _BottomSheet extends StatelessWidget {
           ],
         ),
         padding: EdgeInsets.only(
-          bottom: state.sheetExpanded
+          bottom: state.sheetExpanded ||
+                  (state.clientState == ClientState.home &&
+                      (state.pickMode != null || state.selectedPlace != null))
               ? MediaQuery.of(context).padding.bottom + 16
               : 0,
         ),
@@ -313,7 +390,11 @@ class _BottomSheet extends StatelessWidget {
               ),
             ),
             // Панель
-            if (!state.sheetExpanded && state.clientState == ClientState.home)
+            if (state.clientState == ClientState.home && state.pickMode != null)
+              const _PickPanel()
+            else if (state.clientState == ClientState.home && state.selectedPlace != null)
+              _PlacePanel(place: state.selectedPlace!)
+            else if (!state.sheetExpanded && state.clientState == ClientState.home)
               const _CollapsedHomePanel()
             else if (state.sheetExpanded)
               AnimatedSwitcher(
@@ -370,7 +451,7 @@ class _HomePanel extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Моё местоположение',
+                  state.pickupResolving ? 'Определяем адрес…' : state.fromAddress,
                   style: TextStyle(
                     color: context.ink2,
                     fontSize: 14,
@@ -380,7 +461,7 @@ class _HomePanel extends StatelessWidget {
                 ),
               ),
               TextButton(
-                onPressed: () {},
+                onPressed: () => openSearch(context, forFrom: true),
                 style: TextButton.styleFrom(
                   foregroundColor: context.taxi,
                   padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -396,63 +477,9 @@ class _HomePanel extends StatelessWidget {
         ),
 
         // Поле «Куда едем?»
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-          child: GestureDetector(
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                    builder: (_) => const SearchScreen(),
-                    fullscreenDialog: true),
-              );
-            },
-            child: Container(
-              height: 58,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: context.surface,
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 12, height: 12,
-                    decoration: BoxDecoration(
-                      color: context.taxi,
-                      borderRadius: BorderRadius.circular(4),
-                      boxShadow: [
-                        BoxShadow(
-                            color: context.taxi.withOpacity(.3),
-                            blurRadius: 8),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      state.destination.isEmpty
-                          ? 'Куда едем?'
-                          : state.destination,
-                      style: TextStyle(
-                        color: state.destination.isEmpty
-                            ? context.hint
-                            : context.ink,
-                        fontSize: 19,
-                        fontWeight: state.destination.isEmpty
-                            ? FontWeight.w400
-                            : FontWeight.w600,
-                        letterSpacing: -.02 * 19,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (state.destination.isEmpty)
-                    Text('',
-                        style: TextStyle(color: context.muted, fontSize: 13)),
-                ],
-              ),
-            ),
-          ),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 4, 16, 0),
+          child: _WhereField(),
         ),
 
         // Быстрые чипы
@@ -465,12 +492,12 @@ class _HomePanel extends StatelessWidget {
             physics: const ClampingScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 16),
             separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemCount: _quickPlacesData.length,
+            itemCount: _chipPlaces.length,
             itemBuilder: (_, i) {
-              final (label, color, icon) = _quickPlacesData[i];
+              final p = _chipPlaces[i];
               return _QuickChip(
-                label: label, color: color, icon: icon,
-                onTap: () => state.setDestination(label),
+                label: p.name, color: p.color, icon: p.icon,
+                onTap: () => state.setDestination(p.name, p.point),
               );
             },
           ),
@@ -569,11 +596,7 @@ class _HomePanel extends StatelessWidget {
       sub: state.destination.isEmpty ? null : state.tariffPrice,
       onTap: () {
         if (state.destination.isEmpty) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-                builder: (_) => const SearchScreen(),
-                fullscreenDialog: true),
-          );
+          openSearch(context);
         } else {
           final messenger = ScaffoldMessenger.of(context);
           state.placeOrder().catchError((Object e) {
@@ -620,51 +643,7 @@ class _CollapsedHomePanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // Поле «Куда едем?»
-          GestureDetector(
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                    builder: (_) => const SearchScreen(),
-                    fullscreenDialog: true),
-              );
-            },
-            child: Container(
-              height: 58,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: context.surface,
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 12, height: 12,
-                    decoration: BoxDecoration(
-                      color: context.taxi,
-                      borderRadius: BorderRadius.circular(4),
-                      boxShadow: [BoxShadow(color: context.taxi.withOpacity(.3), blurRadius: 8)],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      state.destination.isEmpty ? 'Куда едем?' : state.destination,
-                      style: TextStyle(
-                        color: state.destination.isEmpty ? context.hint : context.ink,
-                        fontSize: 19,
-                        fontWeight: state.destination.isEmpty
-                            ? FontWeight.w400
-                            : FontWeight.w600,
-                        letterSpacing: -.02 * 19,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Icon(Icons.search_rounded, color: context.muted, size: 22),
-                ],
-              ),
-            ),
-          ),
+          const _WhereField(),
           const SizedBox(height: 8),
           // Строка: тариф + цена слева, стрелка «развернуть» справа
           Row(
@@ -2169,12 +2148,222 @@ class _WishSheet extends StatelessWidget {
   }
 }
 
-// ─── Быстрые чипы данные ────────────────────────────────────────────────────
-const _quickPlacesData = [
-  ('Дом',           Color(0xFF0E7C66), Icons.home_outlined),
-  ('Вокзал Достык', Color(0xFF6E56CF), Icons.train_outlined),
-  ('Больница',      Color(0xFFE5484D), Icons.add_circle_outline),
-  ('Таможня · КПП', Color(0xFF0B7A75), Icons.security),
-  ('Школа',         Color(0xFFD97A00), Icons.school_outlined),
-  ('Базар',         Color(0xFF13A35A), Icons.shopping_bag_outlined),
-];
+// ─── Быстрые чипы ───────────────────────────────────────────────────────────
+final _chipPlaces = dostykPlaces.where((p) => p.chip).toList();
+
+void openSearch(BuildContext context, {bool forFrom = false}) {
+  Navigator.of(context).push(MaterialPageRoute(
+    builder: (_) => SearchScreen(forFrom: forFrom),
+    fullscreenDialog: true,
+  ));
+}
+
+// ─── Поле «Куда»: название места крупно, справа расстояние и время ──────────
+class _WhereField extends StatelessWidget {
+  const _WhereField();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final has = state.destination.isNotEmpty;
+    final r = state.route;
+    return GestureDetector(
+      onTap: () => openSearch(context),
+      child: Container(
+        height: 58,
+        padding: const EdgeInsets.only(left: 16, right: 6),
+        decoration: BoxDecoration(
+          color: has ? context.taxiSft : context.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: has ? context.jLine : Colors.transparent),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 12, height: 12,
+              decoration: BoxDecoration(
+                color: context.taxi,
+                borderRadius: BorderRadius.circular(4),
+                boxShadow: [BoxShadow(color: context.taxi.withOpacity(.3), blurRadius: 8)],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                has ? state.destination : 'Куда едем?',
+                style: TextStyle(
+                  color: has ? context.ink : context.hint,
+                  fontSize: 19,
+                  fontWeight: has ? FontWeight.w700 : FontWeight.w400,
+                  letterSpacing: -.02 * 19,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (has) ...[
+              const SizedBox(width: 8),
+              Text(
+                r == null
+                    ? '…'
+                    : '${formatDistance(r.meters)} · ${r.minutes} мин',
+                style: TextStyle(
+                  color: context.taxi,
+                  fontSize: 13.5, fontWeight: FontWeight.w700,
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.close_rounded, color: context.muted, size: 20),
+                tooltip: 'Убрать',
+                onPressed: state.clearDestination,
+              ),
+            ] else
+              Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: Icon(Icons.search_rounded, color: context.muted, size: 22),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── «Указать на карте» ─────────────────────────────────────────────────────
+class _PickPanel extends StatelessWidget {
+  const _PickPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final forFrom = state.pickMode == 'from';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: Icon(Icons.arrow_back_rounded, color: context.ink),
+                onPressed: state.cancelPick,
+                style: IconButton.styleFrom(backgroundColor: context.surface),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      forFrom
+                          ? 'Двигайте карту — машина приедет к булавке'
+                          : 'Двигайте карту — куда поедем',
+                      style: TextStyle(color: context.muted, fontSize: 12.5),
+                    ),
+                    Text(
+                      state.pickAddress ?? 'Определяем адрес…',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: context.ink,
+                        fontSize: 20, fontWeight: FontWeight.w800,
+                        letterSpacing: -.02 * 20,
+                      ),
+                    ),
+                    if (state.pickNear != null)
+                      Text('Рядом: ${state.pickNear}',
+                          style: TextStyle(
+                            color: context.taxi,
+                            fontSize: 13, fontWeight: FontWeight.w600,
+                          )),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _CtaButton(
+            label: 'Готово',
+            enabled: state.pickPoint != null,
+            onTap: state.confirmPick,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Карточка места, нажатого на карте ──────────────────────────────────────
+class _PlacePanel extends StatelessWidget {
+  final Place place;
+  const _PlacePanel({required this.place});
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.read<AppState>();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48, height: 48,
+                decoration: BoxDecoration(
+                  color: place.color.withOpacity(.14),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Icon(place.icon, color: place.color, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(place.name,
+                        style: TextStyle(
+                          color: context.ink,
+                          fontSize: 20, fontWeight: FontWeight.w800,
+                        )),
+                    Text(place.sub,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: context.muted, fontSize: 13.5)),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.close_rounded, color: context.ink),
+                onPressed: () => state.selectPlace(null),
+                style: IconButton.styleFrom(backgroundColor: context.surface),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _CtaButton(
+                  label: 'Отсюда',
+                  soft: true,
+                  onTap: () {
+                    state.selectPlace(null);
+                    state.setPickupPlace(place.name, place.point);
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _CtaButton(
+                  label: 'Сюда',
+                  onTap: () => state.setDestination(place.name, place.point),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}

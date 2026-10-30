@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:latlong2/latlong.dart';
 import 'data/orders.dart';
+import 'data/places.dart';
+import 'services/geo_api.dart';
 import 'services/location.dart';
 import 'services/sound.dart';
 import 'widgets/taxi_map.dart' show dostykCenter;
@@ -18,6 +20,14 @@ class AppState extends ChangeNotifier {
       uid = u?.uid;
       userName = '';
       profileLoaded = false;
+      _onlineSub?.cancel();
+      _onlineSub = null;
+      if (u != null) {
+        _onlineSub = this.orders.watchOnlineDrivers().listen((list) {
+          onlineDrivers = [for (final g in list) LatLng(g.lat, g.lng)];
+          notifyListeners();
+        });
+      }
       notifyListeners();
       if (u != null) reloadProfile();
     });
@@ -55,7 +65,7 @@ class AppState extends ChangeNotifier {
   ClientState clientState = ClientState.home;
   Tariff tariff = Tariff.local;
   String destination = '';
-  String fromAddress = 'ул. Молдагуловой';
+  String fromAddress = 'Определяем адрес…';
   String paymentMethod = 'cash'; // cash | kaspi
 
   // ─── UI ─────────────────────────────────────────────────────────────────
@@ -81,7 +91,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
   void setTariff(Tariff t)           { tariff = t;       notifyListeners(); }
-  void setDestination(String d)      { destination = d;  notifyListeners(); }
   void setPayment(String p)          { paymentMethod = p; notifyListeners(); }
 
   void toggleOnline() {
@@ -97,11 +106,176 @@ class AppState extends ChangeNotifier {
   LatLng? driverLocation;
   StreamSubscription<Geo?>? _driverLocSub;
 
+  /// Ориентир рядом с точкой подачи, например «Базар».
+  String? pickupNear;
+  bool pickupResolving = false;
+  int _pickupAddrReq = 0;
+
+  /// Растёт, когда точку подачи поменяли не движением карты — экран переносит туда карту.
+  int pickupVersion = 0;
+
   void setPickup(LatLng p) {
     if (clientState != ClientState.home) return;
     if (Distance()(p, pickup) < 3) return;
     pickup = p;
-    fromAddress = 'Точка на карте';
+    resolvePickupAddress();
+    if (destPoint != null) _updateRoute();
+    notifyListeners();
+  }
+
+  void setPickupPlace(String label, LatLng p) {
+    pickup = p;
+    fromAddress = label;
+    pickupNear = null;
+    pickupResolving = false;
+    _pickupAddrReq++;
+    pickupVersion++;
+    if (destPoint != null) _updateRoute();
+    notifyListeners();
+  }
+
+  Future<void> pickupFromGps() async {
+    final p = await locateMe();
+    if (p == null) return;
+    pickup = p;
+    pickupVersion++;
+    resolvePickupAddress();
+    if (destPoint != null) _updateRoute();
+    notifyListeners();
+  }
+
+  static Future<(String, String?)> _addressFor(LatLng p) async {
+    final addr = await GeoApi.reverse(p);
+    final near = nearestPlace(p)?.name;
+    return (addr ?? 'Точка на карте', near);
+  }
+
+  Future<void> resolvePickupAddress() async {
+    final req = ++_pickupAddrReq;
+    final p = pickup;
+    pickupResolving = true;
+    notifyListeners();
+    final (label, near) = await _addressFor(p);
+    if (req != _pickupAddrReq) return;
+    fromAddress = label;
+    pickupNear = near;
+    pickupResolving = false;
+    notifyListeners();
+  }
+
+  // ─── Назначение и маршрут ───────────────────────────────────────────────
+  LatLng? destPoint;
+  RouteInfo? route;
+  int _routeReq = 0;
+
+  /// Растёт с каждым новым маршрутом — экран показывает маршрут целиком один раз.
+  int routeVersion = 0;
+
+  void setDestination(String label, LatLng point) {
+    destination = label;
+    destPoint = point;
+    route = null;
+    selectedPlace = null;
+    pickMode = null;
+    notifyListeners();
+    _updateRoute();
+  }
+
+  void clearDestination() {
+    destination = '';
+    destPoint = null;
+    route = null;
+    _routeReq++;
+    notifyListeners();
+  }
+
+  Future<void> _updateRoute() async {
+    final to = destPoint;
+    if (to == null) return;
+    final req = ++_routeReq;
+    final r = await GeoApi.route(pickup, to);
+    if (req != _routeReq) return;
+    route = r;
+    routeVersion++;
+    notifyListeners();
+  }
+
+  // ─── Машины на линии рядом с клиентом ───────────────────────────────────
+  List<LatLng> onlineDrivers = [];
+  StreamSubscription<List<Geo>>? _onlineSub;
+
+  /// Минуты подачи ближайшей свободной машины; null — машин на линии нет.
+  int? get pickupEtaMinutes {
+    if (onlineDrivers.isEmpty) return null;
+    final d = Distance();
+    final m = onlineDrivers.map((c) => d(c, pickup)).reduce((a, b) => a < b ? a : b);
+    return (m * 1.3 / 420).ceil().clamp(1, 999);
+  }
+
+  /// Время прибытия к месту назначения: подача + дорога.
+  DateTime? get arrivalTime {
+    final r = route;
+    if (r == null) return null;
+    return DateTime.now()
+        .add(Duration(minutes: (pickupEtaMinutes ?? 3) + r.minutes));
+  }
+
+  // ─── «Указать на карте» ─────────────────────────────────────────────────
+  /// 'to' — выбираем куда, 'from' — откуда; null — режим выключен.
+  String? pickMode;
+  LatLng? pickPoint;
+  String? pickAddress;
+  String? pickNear;
+  int _pickReq = 0;
+
+  void startPick(String mode) {
+    pickMode = mode;
+    pickPoint = null;
+    pickAddress = null;
+    pickNear = null;
+    selectedPlace = null;
+    notifyListeners();
+  }
+
+  Future<void> updatePick(LatLng p) async {
+    if (pickMode == null) return;
+    pickPoint = p;
+    pickAddress = null;
+    final req = ++_pickReq;
+    notifyListeners();
+    final (label, near) = await _addressFor(p);
+    if (req != _pickReq) return;
+    pickAddress = label;
+    pickNear = near;
+    notifyListeners();
+  }
+
+  void cancelPick() {
+    pickMode = null;
+    _pickReq++;
+    notifyListeners();
+  }
+
+  void confirmPick() {
+    final p = pickPoint;
+    final mode = pickMode;
+    if (p == null || mode == null) return;
+    final label = pickAddress ?? 'Точка на карте';
+    pickMode = null;
+    _pickReq++;
+    if (mode == 'to') {
+      setDestination(label, p);
+    } else {
+      setPickupPlace(label, p);
+      pickupNear = pickNear;
+    }
+  }
+
+  // ─── Карточка места, нажатого на карте ──────────────────────────────────
+  Place? selectedPlace;
+
+  void selectPlace(Place? p) {
+    selectedPlace = p;
     notifyListeners();
   }
 
@@ -158,6 +332,9 @@ class AppState extends ChangeNotifier {
         from: fromAddress,
         fromGeo: (lat: pickup.latitude, lng: pickup.longitude),
         to: destination,
+        toGeo: destPoint == null
+            ? null
+            : (lat: destPoint!.latitude, lng: destPoint!.longitude),
         tariff: tariff.name,
         price: tariffPriceInt,
         payment: paymentMethod,
@@ -234,6 +411,8 @@ class AppState extends ChangeNotifier {
     activeOrderId = null;
     activeOrder = null;
     destination = '';
+    destPoint = null;
+    route = null;
     setClientState(ClientState.home);
     if (id != null) await orders.update(id, {'rating': stars});
   }
@@ -389,6 +568,7 @@ class AppState extends ChangeNotifier {
     _driverLocSub?.cancel();
     _gpsSub?.cancel();
     _simTimer?.cancel();
+    _onlineSub?.cancel();
     super.dispose();
   }
 
@@ -445,14 +625,3 @@ const mockDriver = MockDriver(
   plate: '045 AKZ 18',
   rating: '4,9',   trips: 1240,
 );
-
-const mockPlaces = [
-  ('Больница',  'Ул. Молдагуловой, 14',  Icons.add_circle_outline,       Color(0xFFE5484D)),
-  ('Рынок',     'Центральный рынок',     Icons.shopping_bag_outlined,    Color(0xFF13A35A)),
-  ('Школа №1',  'Ул. Достык, 1',        Icons.school_outlined,          Color(0xFFD97A00)),
-  ('Мечеть',    'Ул. Молдагуловой, 32', Icons.mosque,                   Color(0xFF6E56CF)),
-  ('КПП',       'Граница',              Icons.security,                 Color(0xFF0B7A75)),
-  ('Почта',     'Ул. Сейткали',         Icons.mail_outline,             Color(0xFF4A5160)),
-  ('Аптека',    'Ул. Молдагуловой, 8',  Icons.local_pharmacy_outlined,  Color(0xFF13A35A)),
-  ('Детсад',    'Ул. Достык, 5',        Icons.child_care,               Color(0xFFD97A00)),
-];

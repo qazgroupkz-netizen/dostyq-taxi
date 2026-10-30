@@ -136,6 +136,11 @@ class _DriverBody extends StatelessWidget {
                       children: [
                         const SizedBox(height: 16),
 
+                        if (state.isOnline && state.myLocation == null) ...[
+                          const _NoGpsWarning(),
+                          const SizedBox(height: 12),
+                        ],
+
                         // Предупреждение о подписке
                         _SubWarning(),
 
@@ -174,6 +179,36 @@ class _DriverBody extends StatelessWidget {
               onPressed: () {
                 context.read<AppState>().setDriverMode(false);
               },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NoGpsWarning extends StatelessWidget {
+  const _NoGpsWarning();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF3A1416),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFF7A2A2E)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.location_off_rounded, color: Color(0xFFFF8A8E), size: 22),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Местоположение не определено — клиенты не увидят вашу машину. '
+              'Разрешите геолокацию в настройках браузера или телефона.',
+              style: TextStyle(color: Color(0xFFF2C9CB), fontSize: 13.5, height: 1.4),
             ),
           ),
         ],

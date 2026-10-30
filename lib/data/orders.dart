@@ -47,6 +47,7 @@ abstract class OrderRepository {
     required String from,
     Geo? fromGeo,
     required String to,
+    Geo? toGeo,
     required String tariff,
     required int price,
     required String payment,
@@ -73,6 +74,9 @@ abstract class OrderRepository {
   Future<void> setDriverOnline(String uid, bool online);
 
   Stream<Geo?> watchDriverLocation(String uid);
+
+  /// Координаты водителей на линии, обновлявшихся за последние 10 минут.
+  Stream<List<Geo>> watchOnlineDrivers();
 }
 
 class FirestoreOrderRepository implements OrderRepository {
@@ -111,6 +115,7 @@ class FirestoreOrderRepository implements OrderRepository {
     required String from,
     Geo? fromGeo,
     required String to,
+    Geo? toGeo,
     required String tariff,
     required int price,
     required String payment,
@@ -123,7 +128,11 @@ class FirestoreOrderRepository implements OrderRepository {
         if (fromGeo != null) 'lat': fromGeo.lat,
         if (fromGeo != null) 'lng': fromGeo.lng,
       },
-      'to': {'label': to},
+      'to': {
+        'label': to,
+        if (toGeo != null) 'lat': toGeo.lat,
+        if (toGeo != null) 'lng': toGeo.lng,
+      },
       'service': tariff,
       'price': price,
       'payment': payment,
@@ -220,5 +229,24 @@ class FirestoreOrderRepository implements OrderRepository {
         final lng = (loc['lng'] as num?)?.toDouble();
         if (lat == null || lng == null) return null;
         return (lat: lat, lng: lng);
+      });
+
+  @override
+  Stream<List<Geo>> watchOnlineDrivers() => _drivers
+          .where('status', isEqualTo: 'online')
+          .snapshots()
+          .map((q) {
+        final fresh = DateTime.now().subtract(const Duration(minutes: 10));
+        final out = <Geo>[];
+        for (final d in q.docs) {
+          final loc = d.data()['location'];
+          if (loc is! Map) continue;
+          final at = (loc['updatedAt'] as Timestamp?)?.toDate();
+          if (at != null && at.isBefore(fresh)) continue;
+          final lat = (loc['lat'] as num?)?.toDouble();
+          final lng = (loc['lng'] as num?)?.toDouble();
+          if (lat != null && lng != null) out.add((lat: lat, lng: lng));
+        }
+        return out;
       });
 }

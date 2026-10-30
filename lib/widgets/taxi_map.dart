@@ -2,23 +2,36 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../data/places.dart';
 
-const dostykCenter = LatLng(45.2500, 82.4830);
+const dostykCenter = LatLng(45.25606, 82.49278);
 
 const _jade = Color(0xFF0E7C66);
+const _ink = Color(0xFF111317);
 
 class TaxiMap extends StatefulWidget {
   final MapController? controller;
   final LatLng initialCenter;
 
-  /// Булавка подачи зафиксирована в центре экрана; карта двигается под ней.
+  /// Булавка зафиксирована в центре экрана; карта двигается под ней.
   final bool centerPin;
+
+  /// Плашка над булавкой подачи, например «~3 мин».
   final String? pinLabel;
+
+  /// Подпись под булавкой в центре (адрес); прячется, пока карта движется.
+  final String? pinCaption;
   final ValueChanged<LatLng>? onCenterChanged;
 
   final LatLng? pickup;
+  final LatLng? dest;
+  final String? destLabel;
+  final List<LatLng>? route;
   final LatLng? car;
+  final List<LatLng> idleCars;
   final LatLng? me;
+  final List<Place> places;
+  final ValueChanged<Place>? onPlaceTap;
 
   /// Карта сама переезжает к этой точке, когда она меняется.
   final LatLng? follow;
@@ -30,10 +43,17 @@ class TaxiMap extends StatefulWidget {
     this.initialCenter = dostykCenter,
     this.centerPin = false,
     this.pinLabel,
+    this.pinCaption,
     this.onCenterChanged,
     this.pickup,
+    this.dest,
+    this.destLabel,
+    this.route,
     this.car,
+    this.idleCars = const [],
     this.me,
+    this.places = const [],
+    this.onPlaceTap,
     this.follow,
     this.interactive = true,
   });
@@ -46,6 +66,7 @@ class _TaxiMapState extends State<TaxiMap> {
   late final MapController _controller = widget.controller ?? MapController();
   Timer? _debounce;
   bool _ready = false;
+  bool _moving = false;
 
   @override
   void didUpdateWidget(TaxiMap old) {
@@ -62,9 +83,19 @@ class _TaxiMapState extends State<TaxiMap> {
     super.dispose();
   }
 
+  void _onPosition(MapCamera camera, bool hasGesture) {
+    if (hasGesture && !_moving && widget.centerPin) setState(() => _moving = true);
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      if (mounted && _moving) setState(() => _moving = false);
+      widget.onCenterChanged?.call(camera.center);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.of(context).padding.top;
+    final route = widget.route;
     return Stack(
       children: [
         RepaintBoundary(child: FlutterMap(
@@ -81,13 +112,7 @@ class _TaxiMapState extends State<TaxiMap> {
                   : InteractiveFlag.none,
             ),
             onMapReady: () => _ready = true,
-            onPositionChanged: (camera, _) {
-              final cb = widget.onCenterChanged;
-              if (cb == null) return;
-              _debounce?.cancel();
-              _debounce = Timer(const Duration(milliseconds: 350),
-                  () => cb(camera.center));
-            },
+            onPositionChanged: _onPosition,
           ),
           children: [
             TileLayer(
@@ -96,6 +121,11 @@ class _TaxiMapState extends State<TaxiMap> {
               tileDisplay: const TileDisplay.instantaneous(),
               keepBuffer: 4,
             ),
+            if (route != null && route.length > 1)
+              PolylineLayer(polylines: [
+                Polyline(points: route, color: Colors.white, strokeWidth: 10),
+                Polyline(points: route, color: _jade, strokeWidth: 6),
+              ]),
             if (widget.car != null && widget.pickup != null)
               PolylineLayer(polylines: [
                 Polyline(
@@ -106,36 +136,65 @@ class _TaxiMapState extends State<TaxiMap> {
                 ),
               ]),
             MarkerLayer(markers: [
-              if (widget.me != null)
+              for (final p in widget.places)
                 Marker(
-                  point: widget.me!,
-                  width: 22, height: 22,
-                  child: const _MeDot(),
+                  point: p.point,
+                  width: 30, height: 30,
+                  child: _PlaceMarker(
+                    place: p,
+                    onTap: widget.onPlaceTap == null
+                        ? null
+                        : () => widget.onPlaceTap!(p),
+                  ),
+                ),
+              for (final c in widget.idleCars)
+                Marker(point: c, width: 30, height: 30, child: const _IdleCar()),
+              if (widget.me != null)
+                Marker(point: widget.me!, width: 22, height: 22, child: const _MeDot()),
+              if (widget.dest != null)
+                Marker(
+                  point: widget.dest!,
+                  width: 180, height: 90,
+                  alignment: Alignment.topCenter,
+                  child: _DestPin(label: widget.destLabel),
                 ),
               if (widget.pickup != null && !widget.centerPin)
                 Marker(
                   point: widget.pickup!,
-                  width: 160, height: 86,
+                  width: 180, height: 90,
                   alignment: Alignment.topCenter,
                   child: _Pin(label: widget.pinLabel),
                 ),
               if (widget.car != null)
-                Marker(
-                  point: widget.car!,
-                  width: 48, height: 48,
-                  child: const _CarMarker(),
-                ),
+                Marker(point: widget.car!, width: 48, height: 48, child: const _CarMarker()),
             ]),
           ],
         )),
         if (widget.centerPin)
           IgnorePointer(
             child: Center(
-              child: Transform.translate(
-                offset: const Offset(0, -43),
+              // Середина блока (низ булавки) — ровно в центре карты; при движении приподнимаем.
+              child: AnimatedSlide(
+                duration: const Duration(milliseconds: 150),
+                offset: Offset(0, _moving ? -0.08 : 0),
                 child: SizedBox(
-                  width: 160, height: 86,
-                  child: _Pin(label: widget.pinLabel),
+                  width: 240, height: 180,
+                  child: Column(
+                    children: [
+                      SizedBox(height: 90, child: _Pin(label: widget.pinLabel)),
+                      SizedBox(
+                        height: 90,
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: AnimatedOpacity(
+                            duration: const Duration(milliseconds: 150),
+                            opacity: _moving || widget.pinCaption == null ? 0 : 1,
+                            child: _Caption(text: widget.pinCaption ?? ''),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -159,6 +218,32 @@ class _TaxiMapState extends State<TaxiMap> {
   }
 }
 
+class _Bubble extends StatelessWidget {
+  final String text;
+  final bool dark;
+  const _Bubble({required this.text, this.dark = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: dark ? _ink : Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(.2), blurRadius: 8)],
+      ),
+      child: Text(text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: dark ? Colors.white : _ink,
+            fontSize: 12.5, fontWeight: FontWeight.w700,
+          )),
+    );
+  }
+}
+
 class _Pin extends StatelessWidget {
   final String? label;
   const _Pin({this.label});
@@ -168,31 +253,12 @@ class _Pin extends StatelessWidget {
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        if (label != null && label!.isNotEmpty)
-          Container(
-            margin: const EdgeInsets.only(bottom: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFF14171F),
-              borderRadius: BorderRadius.circular(15),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(.2), blurRadius: 8),
-              ],
-            ),
-            child: Text(label!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12.5, fontWeight: FontWeight.w700,
-                )),
-          ),
+        if (label != null && label!.isNotEmpty) _Bubble(text: label!, dark: true),
         Container(
-          width: 34, height: 34,
+          width: 30, height: 30,
           decoration: BoxDecoration(
-            color: _jade,
+            color: _ink,
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 3),
             boxShadow: [
               BoxShadow(color: Colors.black.withOpacity(.25), blurRadius: 8,
                   offset: const Offset(0, 3)),
@@ -200,13 +266,120 @@ class _Pin extends StatelessWidget {
           ),
           alignment: Alignment.center,
           child: Container(
-            width: 10, height: 10,
-            decoration: const BoxDecoration(
-                color: Colors.white, shape: BoxShape.circle),
+            width: 11, height: 11,
+            decoration: const BoxDecoration(color: _jade, shape: BoxShape.circle),
           ),
         ),
-        Container(width: 3, height: 10, color: const Color(0xFF14171F)),
+        Container(width: 3, height: 14, color: _ink),
       ],
+    );
+  }
+}
+
+class _DestPin extends StatelessWidget {
+  final String? label;
+  const _DestPin({this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        if (label != null && label!.isNotEmpty) _Bubble(text: label!),
+        Container(
+          width: 24, height: 24,
+          decoration: BoxDecoration(
+            color: _jade,
+            borderRadius: BorderRadius.circular(7),
+            border: Border.all(color: _ink, width: 3),
+          ),
+        ),
+        Container(width: 3, height: 18, color: _ink),
+      ],
+    );
+  }
+}
+
+class _Caption extends StatelessWidget {
+  final String text;
+  const _Caption({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.95),
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(.15), blurRadius: 6)],
+      ),
+      child: Text(text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: _ink, fontSize: 12.5, fontWeight: FontWeight.w600)),
+    );
+  }
+}
+
+class _PlaceMarker extends StatelessWidget {
+  final Place place;
+  final VoidCallback? onTap;
+  const _PlaceMarker({required this.place, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 26, height: 26,
+            decoration: BoxDecoration(
+              color: place.color,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2.5),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(.2), blurRadius: 4)],
+            ),
+            child: Icon(place.icon, color: Colors.white, size: 14),
+          ),
+          Positioned(
+            left: 30, top: 6,
+            child: IgnorePointer(
+              child: Text(place.name,
+                  softWrap: false,
+                  style: const TextStyle(
+                    color: Color(0xFF2A2E35),
+                    fontSize: 12, fontWeight: FontWeight.w700,
+                    shadows: [
+                      Shadow(color: Colors.white, blurRadius: 3),
+                      Shadow(color: Colors.white, blurRadius: 3),
+                    ],
+                  )),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _IdleCar extends StatelessWidget {
+  const _IdleCar();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(.2), blurRadius: 4)],
+      ),
+      alignment: Alignment.center,
+      child: const Icon(Icons.local_taxi_rounded, color: _jade, size: 18),
     );
   }
 }
@@ -243,8 +416,7 @@ class _MeDot extends StatelessWidget {
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 3),
         boxShadow: [
-          BoxShadow(color: const Color(0xFF2F7BEA).withOpacity(.4),
-              blurRadius: 10),
+          BoxShadow(color: const Color(0xFF2F7BEA).withOpacity(.4), blurRadius: 10),
         ],
       ),
     );
