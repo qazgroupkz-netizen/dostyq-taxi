@@ -13,6 +13,7 @@ import '../state.dart';
 import '../theme.dart';
 import 'dispatch_page.dart';
 import 'drivers_page.dart';
+import 'intercity_page.dart';
 import 'orders_page.dart';
 import 'places_page.dart';
 import 'regions_page.dart';
@@ -135,6 +136,8 @@ class _AdminHomeState extends State<AdminHome> {
         page: DispatchPage(), ownerOnly: false),
     (group: 'Оперативно', icon: Icons.format_list_bulleted_rounded, label: 'Заказы',
         page: OrdersPage(), ownerOnly: false),
+    (group: 'Оперативно', icon: Icons.domain_rounded, label: 'Межгород',
+        page: IntercityPage(), ownerOnly: false),
     (group: 'Водители', icon: Icons.group_outlined, label: 'Водители и анкеты',
         page: DriversPage(), ownerOnly: true),
     (group: 'Настройки', icon: Icons.place_outlined, label: 'Адреса',

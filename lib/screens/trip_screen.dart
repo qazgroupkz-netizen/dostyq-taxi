@@ -1,17 +1,15 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../data/regions.dart';
+import '../data/trips.dart';
 import '../state.dart';
 import '../theme.dart';
 
-String _seat(BuildContext c) => formatPrice(c.read<AppState>().settings.seatPrice);
-String _whole(BuildContext c) => formatPrice(c.read<AppState>().settings.wholeCarPrice);
+const _weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
-// ════════════════════════════════════════════════════════════════
-//  Экран рейсов Достык → Ушарал
-// ════════════════════════════════════════════════════════════════
-
+/// Рейсы между районами: места по одному или вся машина, посылки.
 class TripScreen extends StatefulWidget {
-  /// true = выбор целой машины, false = выбор места
   final bool wholeCarMode;
   const TripScreen({super.key, this.wholeCarMode = false});
 
@@ -20,117 +18,150 @@ class TripScreen extends StatefulWidget {
 }
 
 class _TripScreenState extends State<TripScreen> {
-  int _dateIndex = 0;
-  _MockTrip? _selected;
+  int _day = 0;
+  String? _to;
+  Stream<List<Trip>>? _stream;
+  String? _streamKey;
+
+  DateTime get _date => DateTime.now().add(Duration(days: _day));
 
   @override
   Widget build(BuildContext context) {
-    final topPad = MediaQuery.of(context).padding.top;
+    final state = context.watch<AppState>();
+    final others = state.regions.where((r) => r.id != state.regionId).toList();
+    if (others.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Межгород')),
+        body: const Center(child: Text('Пока нет других районов для поездки')),
+      );
+    }
+    final to = others.any((r) => r.id == _to) ? _to! : others.first.id;
+    final toName = others.firstWhere((r) => r.id == to).name;
+    final route = '${state.regionId}>$to';
+    final key = '$route ${dateKey(_date)}';
+    if (_streamKey != key) {
+      _streamKey = key;
+      _stream = state.trips.watchDay(route, dateKey(_date));
+    }
+    final s = state.settings;
 
     return Scaffold(
       backgroundColor: context.bg,
+      appBar: AppBar(
+        backgroundColor: context.paper,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.wholeCarMode ? 'Вся машина' : 'Рейсы',
+                style: TextStyle(color: context.ink, fontSize: 18, fontWeight: FontWeight.w800)),
+            Text(
+              widget.wholeCarMode
+                  ? '${formatPrice(s.wholeCarPrice)} · ${state.region.name} → $toName'
+                  : '${formatPrice(s.seatPrice)} за место · ${state.region.name} → $toName',
+              style: TextStyle(color: context.muted, fontSize: 13),
+            ),
+          ],
+        ),
+      ),
       body: Column(
         children: [
-          // ── Шапка
           Container(
             color: context.paper,
-            padding: EdgeInsets.fromLTRB(16, topPad + 14, 16, 14),
-            child: Row(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Column(
               children: [
-                GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
-                  child: Container(
-                    width: 42, height: 42,
-                    decoration: BoxDecoration(
-                      color: context.surface,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(Icons.arrow_back_ios_new_rounded,
-                        color: context.ink, size: 18),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.wholeCarMode
-                            ? 'Вся машина до Ушарала'
-                            : 'Рейсы Достык → Ушарал',
-                        style: TextStyle(
-                          color: context.ink,
-                          fontSize: 18, fontWeight: FontWeight.w800,
+                if (others.length > 1)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Row(
+                      children: [
+                        Text('Куда:', style: TextStyle(color: context.muted)),
+                        const SizedBox(width: 10),
+                        DropdownButton<String>(
+                          value: to,
+                          underline: const SizedBox.shrink(),
+                          items: [
+                            for (final Region r in others)
+                              DropdownMenuItem(value: r.id, child: Text(r.name)),
+                          ],
+                          onChanged: (v) => setState(() => _to = v),
                         ),
-                      ),
-                      Text(
-                        widget.wholeCarMode
-                            ? '${_whole(context)} · 160 км'
-                            : '${_seat(context)} / место · 160 км',
-                        style: TextStyle(color: context.muted, fontSize: 13),
-                      ),
-                    ],
+                      ],
+                    ),
+                  ),
+                SizedBox(
+                  height: 64,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: 7,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (_, i) {
+                      final d = DateTime.now().add(Duration(days: i));
+                      final sel = i == _day;
+                      return GestureDetector(
+                        onTap: () => setState(() => _day = i),
+                        child: Container(
+                          width: 72,
+                          decoration: BoxDecoration(
+                            color: sel ? context.taxi : context.surface,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          alignment: Alignment.center,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                i == 0 ? 'Сегодня' : i == 1 ? 'Завтра' : _weekdays[d.weekday - 1],
+                                style: TextStyle(
+                                  color: sel ? context.onTaxi : context.muted,
+                                  fontSize: 12, fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text('${d.day}',
+                                  style: TextStyle(
+                                    color: sel ? context.onTaxi : context.ink,
+                                    fontSize: 20, fontWeight: FontWeight.w800,
+                                  )),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ],
             ),
           ),
-
-          // ── Даты
-          Container(
-            color: context.paper,
-            padding: const EdgeInsets.fromLTRB(0, 0, 0, 12),
-            child: SizedBox(
-              height: 44,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemCount: _dates.length,
-                itemBuilder: (_, i) {
-                  final sel = i == _dateIndex;
-                  return GestureDetector(
-                    onTap: () => setState(() {
-                      _dateIndex = i;
-                      _selected = null;
-                    }),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 18, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: sel ? context.taxi : context.surface,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+          Expanded(
+            child: StreamBuilder<List<Trip>>(
+              stream: _stream,
+              builder: (context, snap) {
+                if (snap.hasError) {
+                  return Center(child: Text('Не удалось загрузить рейсы: ${snap.error}'));
+                }
+                if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+                final trips = snap.data!;
+                if (trips.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
                       child: Text(
-                        _dates[i],
-                        style: TextStyle(
-                          color: sel ? context.onTaxi : context.ink,
-                          fontSize: 14, fontWeight: FontWeight.w600,
-                        ),
+                        'На этот день рейсов пока нет.\nВыберите другой день — водители добавляют рейсы заранее.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: context.muted, fontSize: 15, height: 1.5),
                       ),
                     ),
                   );
-                },
-              ),
+                }
+                return ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: trips.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (_, i) => _TripCard(trip: trips[i], wholeMode: widget.wholeCarMode),
+                );
+              },
             ),
-          ),
-
-          const SizedBox(height: 1),
-
-          // ── Список рейсов
-          Expanded(
-            child: _selected == null
-                ? _TripList(
-                    trips: _tripsForDay(_dateIndex),
-                    wholeCarMode: widget.wholeCarMode,
-                    onSelect: (t) => setState(() => _selected = t),
-                  )
-                : _SeatPicker(
-                    trip: _selected!,
-                    wholeCarMode: widget.wholeCarMode,
-                    onBack: () => setState(() => _selected = null),
-                  ),
           ),
         ],
       ),
@@ -138,622 +169,358 @@ class _TripScreenState extends State<TripScreen> {
   }
 }
 
-// ── Список рейсов ────────────────────────────────────────────────
-class _TripList extends StatelessWidget {
-  final List<_MockTrip> trips;
-  final bool wholeCarMode;
-  final void Function(_MockTrip) onSelect;
-  const _TripList({
-    required this.trips,
-    required this.wholeCarMode,
-    required this.onSelect,
-  });
+TripBooking _me(AppState state) => TripBooking(
+      clientId: state.uid ?? '',
+      name: state.userName,
+      phone: FirebaseAuth.instance.currentUser?.phoneNumber ?? '',
+    );
+
+class _TripCard extends StatelessWidget {
+  final Trip trip;
+  final bool wholeMode;
+  const _TripCard({required this.trip, required this.wholeMode});
 
   @override
   Widget build(BuildContext context) {
-    if (trips.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    final state = context.read<AppState>();
+    final uid = state.uid ?? '';
+    final mySeat = trip.seatOf(uid);
+    final myWhole = trip.whole?.clientId == uid;
+    final available = wholeMode ? trip.isEmpty : trip.freeSeats > 0;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () => showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => _TripSheet(tripId: trip.id, initial: trip, wholeMode: wholeMode),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: context.paper,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: mySeat != null || myWhole ? context.jLine : context.lineC, width: 1.5),
+        ),
+        child: Row(
           children: [
-            Icon(Icons.directions_car_outlined, color: context.muted, size: 48),
-            const SizedBox(height: 12),
-            Text('Рейсов на этот день нет',
-                style: TextStyle(color: context.muted, fontSize: 16)),
+            Text(trip.time,
+                style: TextStyle(color: context.ink, fontSize: 26, fontWeight: FontWeight.w800)),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(trip.driverName,
+                      style: TextStyle(color: context.ink, fontSize: 16, fontWeight: FontWeight.w700)),
+                  Text('${trip.car} · ${trip.plate}',
+                      style: TextStyle(color: context.muted, fontSize: 13)),
+                  const SizedBox(height: 4),
+                  Text(
+                    myWhole
+                        ? 'Вы забронировали всю машину'
+                        : mySeat != null
+                            ? 'Ваше место № $mySeat'
+                            : trip.whole != null
+                                ? 'Машина занята целиком'
+                                : 'Свободно мест: ${trip.freeSeats} из ${Trip.seatCount}',
+                    style: TextStyle(
+                      color: mySeat != null || myWhole
+                          ? context.accent
+                          : available ? context.ink2 : context.danger,
+                      fontSize: 13.5, fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: context.muted),
           ],
         ),
-      );
-    }
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemCount: trips.length,
-      itemBuilder: (_, i) => _TripCard(
-        trip: trips[i],
-        wholeCarMode: wholeCarMode,
-        onTap: () => onSelect(trips[i]),
       ),
     );
   }
 }
 
-class _TripCard extends StatelessWidget {
-  final _MockTrip trip;
-  final bool wholeCarMode;
-  final VoidCallback onTap;
-  const _TripCard({
-    required this.trip,
-    required this.wholeCarMode,
-    required this.onTap,
-  });
+/// Подробности рейса: схема мест, бронь, вся машина, посылка.
+class _TripSheet extends StatefulWidget {
+  final String tripId;
+  final Trip initial;
+  final bool wholeMode;
+  const _TripSheet({required this.tripId, required this.initial, required this.wholeMode});
 
   @override
-  Widget build(BuildContext context) {
-    final free = trip.seats.where((s) => !s).length;
-    final isFull = free == 0 && !wholeCarMode;
+  State<_TripSheet> createState() => _TripSheetState();
+}
 
-    return Material(
-      color: context.paper,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        onTap: isFull ? null : onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
+class _TripSheetState extends State<_TripSheet> {
+  int? _picked;
+  bool _busy = false;
+  late final Stream<List<Trip>> _day = context
+      .read<AppState>()
+      .trips
+      .watchDay(widget.initial.route, widget.initial.date);
+
+  void _snack(String t) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t)));
+
+  Future<void> _run(Future<bool> Function() f, String ok, String fail) async {
+    setState(() => _busy = true);
+    try {
+      final done = await f();
+      if (!mounted) return;
+      _snack(done ? ok : fail);
+      if (done) setState(() => _picked = null);
+    } catch (e) {
+      if (mounted) _snack('Ошибка: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _parcel(Trip t) async {
+    final state = context.read<AppState>();
+    final what = TextEditingController();
+    final toName = TextEditingController();
+    final toPhone = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Передать посылку'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Время
-              Container(
-                width: 64,
-                alignment: Alignment.center,
-                child: Text(
-                  trip.time,
-                  style: TextStyle(
-                    color: isFull ? context.muted : context.ink,
-                    fontSize: 22, fontWeight: FontWeight.w800,
-                  ),
-                ),
+              TextField(controller: what, decoration: const InputDecoration(labelText: 'Что передаёте')),
+              TextField(controller: toName, decoration: const InputDecoration(labelText: 'Кто получит (имя)')),
+              TextField(
+                controller: toPhone,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(labelText: 'Телефон получателя'),
               ),
-              const SizedBox(width: 14),
-              // Инфо
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(trip.driver,
-                        style: TextStyle(
-                          color: isFull ? context.muted : context.ink,
-                          fontSize: 15, fontWeight: FontWeight.w700,
-                        )),
-                    const SizedBox(height: 2),
-                    Text('${trip.car} · ${trip.plate}',
-                        style: TextStyle(
-                            color: context.muted, fontSize: 13)),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              // Места
-              if (!wholeCarMode)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isFull ? context.surface : context.taxiSft,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    isFull ? 'Мест нет' : '$free / 4',
-                    style: TextStyle(
-                      color: isFull ? context.muted : context.accent,
-                      fontSize: 14, fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                )
-              else
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: context.taxiSft,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    _whole(context),
-                    style: TextStyle(
-                      color: context.accent,
-                      fontSize: 14, fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
             ],
           ),
         ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Отправить')),
+        ],
       ),
     );
+    if (ok != true || what.text.trim().isEmpty || toPhone.text.trim().isEmpty) return;
+    final me = _me(state);
+    await _run(() async {
+      await state.trips.addParcel(
+        t.id,
+        Parcel(
+          id: '${me.clientId}_${DateTime.now().millisecondsSinceEpoch}',
+          clientId: me.clientId,
+          senderName: me.name,
+          senderPhone: me.phone,
+          what: what.text.trim(),
+          toName: toName.text.trim(),
+          toPhone: toPhone.text.trim(),
+        ),
+      );
+      return true;
+    }, 'Посылка добавлена. Водитель заберёт её перед рейсом.', '');
   }
-}
-
-// ── Выбор места ─────────────────────────────────────────────────
-class _SeatPicker extends StatefulWidget {
-  final _MockTrip trip;
-  final bool wholeCarMode;
-  final VoidCallback onBack;
-  const _SeatPicker({
-    required this.trip,
-    required this.wholeCarMode,
-    required this.onBack,
-  });
-
-  @override
-  State<_SeatPicker> createState() => _SeatPickerState();
-}
-
-class _SeatPickerState extends State<_SeatPicker> {
-  int _pickedSeat = -1;
-  bool _booked = false;
 
   @override
   Widget build(BuildContext context) {
-    final trip = widget.trip;
+    final state = context.read<AppState>();
+    final uid = state.uid ?? '';
+    return StreamBuilder<List<Trip>>(
+      stream: _day,
+      builder: (context, snap) {
+        final t = snap.data?.firstWhere((x) => x.id == widget.tripId, orElse: () => widget.initial) ??
+            widget.initial;
+        final mySeat = t.seatOf(uid);
+        final myWhole = t.whole?.clientId == uid;
+        final myParcels = t.parcels.where((p) => p.clientId == uid).toList();
 
-    if (_booked) {
-      return _BookedSuccess(trip: trip, seat: _pickedSeat,
-          wholeCarMode: widget.wholeCarMode);
-    }
-
-    return Column(
-      children: [
-        Expanded(
+        return Container(
+          decoration: BoxDecoration(
+            color: context.paper,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(context).padding.bottom + 16),
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Карточка рейса
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: context.paper,
-                    borderRadius: BorderRadius.circular(20),
+                Text('${t.time} · ${t.driverName}',
+                    style: TextStyle(color: context.ink, fontSize: 22, fontWeight: FontWeight.w800)),
+                Text('${t.car} · ${t.plate}', style: TextStyle(color: context.muted, fontSize: 14)),
+                if (mySeat != null || myWhole)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: SelectableText('Телефон водителя: ${t.driverPhone}',
+                        style: TextStyle(color: context.ink, fontSize: 14, fontWeight: FontWeight.w600)),
                   ),
-                  child: Row(
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(trip.time,
-                              style: TextStyle(
-                                color: context.ink,
-                                fontSize: 26, fontWeight: FontWeight.w800,
-                              )),
-                          Text('Достык → Ушарал',
-                              style: TextStyle(
-                                  color: context.muted, fontSize: 14)),
-                        ],
-                      ),
-                      const Spacer(),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(trip.driver,
-                              style: TextStyle(
-                                color: context.ink,
-                                fontSize: 15, fontWeight: FontWeight.w700,
-                              )),
-                          Text(trip.car,
-                              style: TextStyle(
-                                  color: context.muted, fontSize: 13)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // Схема машины
-                Text(
-                  widget.wholeCarMode
-                      ? 'Вы занимаете всю машину'
-                      : 'Выберите место',
-                  style: TextStyle(
-                    color: context.ink,
-                    fontSize: 16, fontWeight: FontWeight.w700,
-                  ),
-                ),
                 const SizedBox(height: 16),
-
-                _CarDiagram(
-                  seats: trip.seats,
-                  picked: _pickedSeat,
-                  wholeCarMode: widget.wholeCarMode,
-                  onPick: (i) => setState(() => _pickedSeat = i),
+                if (!widget.wholeMode) ...[
+                  _SeatMap(
+                    trip: t,
+                    uid: uid,
+                    picked: _picked,
+                    onPick: mySeat == null && t.whole == null
+                        ? (n) => setState(() => _picked = _picked == n ? null : n)
+                        : null,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                if (myWhole)
+                  OutlinedButton(
+                    onPressed: _busy
+                        ? null
+                        : () => _run(() async {
+                              await state.trips.cancelWhole(t.id);
+                              return true;
+                            }, 'Бронь машины отменена', ''),
+                    child: const Text('Отменить бронь всей машины'),
+                  )
+                else if (mySeat != null)
+                  OutlinedButton(
+                    onPressed: _busy
+                        ? null
+                        : () => _run(() async {
+                              await state.trips.cancelSeat(t.id, mySeat);
+                              return true;
+                            }, 'Бронь места отменена', ''),
+                    child: Text('Отменить бронь места № $mySeat'),
+                  )
+                else if (widget.wholeMode)
+                  FilledButton(
+                    onPressed: _busy || !t.isEmpty
+                        ? null
+                        : () => _run(() => state.trips.bookWhole(t.id, _me(state)),
+                            'Машина ваша! Водитель позвонит накануне.',
+                            'На этот рейс уже есть пассажиры — выберите другой'),
+                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
+                    child: Text(t.isEmpty
+                        ? 'Забронировать всю машину · ${formatPrice(t.wholePrice)}'
+                        : 'На рейсе уже есть пассажиры'),
+                  )
+                else
+                  FilledButton(
+                    onPressed: _busy || _picked == null
+                        ? null
+                        : () => _run(() => state.trips.bookSeat(t.id, _picked!, _me(state)),
+                            'Место забронировано. Водитель позвонит накануне.',
+                            'Это место уже заняли — выберите другое'),
+                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
+                    child: Text(_picked == null
+                        ? 'Нажмите на свободное место'
+                        : 'Забронировать место № $_picked · ${formatPrice(t.seatPrice)}'),
+                  ),
+                const SizedBox(height: 10),
+                TextButton.icon(
+                  onPressed: _busy ? null : () => _parcel(t),
+                  icon: const Icon(Icons.inventory_2_outlined),
+                  label: const Text('Передать посылку с этим рейсом'),
                 ),
+                for (final p in myParcels)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.inventory_2_rounded),
+                    title: Text(p.what),
+                    subtitle: Text('Получит: ${p.toName} ${p.toPhone}'),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      tooltip: 'Убрать посылку',
+                      onPressed: () => state.trips.removeParcel(t.id, p.id),
+                    ),
+                  ),
               ],
             ),
           ),
-        ),
-
-        // Кнопка
-        Padding(
-          padding: EdgeInsets.fromLTRB(
-              16, 8, 16, MediaQuery.of(context).padding.bottom + 16),
-          child: Column(
-            children: [
-              if (!widget.wholeCarMode && _pickedSeat < 0)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    'Нажмите на свободное место',
-                    style: TextStyle(color: context.muted, fontSize: 13),
-                  ),
-                ),
-              _BookBtn(
-                label: widget.wholeCarMode
-                    ? 'Забронировать машину · ${_whole(context)}'
-                    : 'Забронировать место · ${_seat(context)}',
-                enabled: widget.wholeCarMode || _pickedSeat >= 0,
-                onTap: () => setState(() => _booked = true),
-              ),
-            ],
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
 
-// ── Схема машины ─────────────────────────────────────────────────
-class _CarDiagram extends StatelessWidget {
-  final List<bool> seats;
-  final int picked;
-  final bool wholeCarMode;
-  final void Function(int) onPick;
-  const _CarDiagram({
-    required this.seats,
-    required this.picked,
-    required this.wholeCarMode,
-    required this.onPick,
-  });
+/// Схема машины: водитель и место 1 спереди, места 2–4 сзади.
+class _SeatMap extends StatelessWidget {
+  final Trip trip;
+  final String uid;
+  final int? picked;
+  final ValueChanged<int>? onPick;
+  const _SeatMap({required this.trip, required this.uid, required this.picked, this.onPick});
 
-  @override
-  Widget build(BuildContext context) {
-    // Машина: ряд водителя (1 место) + 3 пассажирских ряда (место 0,1,2,3)
-    // Раскладка: водитель слева-спереди, пассажир спереди (место 0)
-    //            сзади: места 1, 2, 3
-
-    return Container(
-      width: 220,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: context.paper,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: context.lineC),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Нос машины
-          Container(
-            width: 120, height: 20,
-            decoration: BoxDecoration(
-              color: context.surface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(60)),
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          // Ряд 1: водитель + место 0 (переднее)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _SeatCircle(
-                label: '🚗',
-                isDriver: true,
-                booked: false,
-                picked: false,
-                wholeMode: wholeCarMode,
-                onTap: () {},
-              ),
-              const SizedBox(width: 24),
-              _SeatCircle(
-                label: '1',
-                isDriver: false,
-                booked: seats[0],
-                picked: picked == 0,
-                wholeMode: wholeCarMode,
-                onTap: () { if (!seats[0]) onPick(0); },
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Разделитель
-          Container(height: 1, color: context.lineC),
-          const SizedBox(height: 16),
-
-          // Ряд 2: места 1, 2 (задние)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _SeatCircle(
-                label: '2',
-                isDriver: false,
-                booked: seats[1],
-                picked: picked == 1,
-                wholeMode: wholeCarMode,
-                onTap: () { if (!seats[1]) onPick(1); },
-              ),
-              const SizedBox(width: 24),
-              _SeatCircle(
-                label: '3',
-                isDriver: false,
-                booked: seats[2],
-                picked: picked == 2,
-                wholeMode: wholeCarMode,
-                onTap: () { if (!seats[2]) onPick(2); },
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Ряд 3: место 3 (по центру сзади)
-          _SeatCircle(
-            label: '4',
-            isDriver: false,
-            booked: seats[3],
-            picked: picked == 3,
-            wholeMode: wholeCarMode,
-            onTap: () { if (!seats[3]) onPick(3); },
-          ),
-          const SizedBox(height: 10),
-
-          // Задний бампер
-          Container(
-            width: 140, height: 14,
-            decoration: BoxDecoration(
-              color: context.surface,
-              borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(8)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SeatCircle extends StatelessWidget {
-  final String label;
-  final bool isDriver, booked, picked, wholeMode;
-  final VoidCallback onTap;
-  const _SeatCircle({
-    required this.label,
-    required this.isDriver,
-    required this.booked,
-    required this.picked,
-    required this.wholeMode,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final Color bg;
-    final Color fg;
-    final bool active = !isDriver && !booked;
-
-    if (isDriver) {
-      bg = context.surface;
-      fg = context.muted;
-    } else if (wholeMode) {
-      bg = context.taxiSft;
-      fg = context.accent;
-    } else if (booked) {
-      bg = context.dSoft;
-      fg = context.danger;
-    } else if (picked) {
-      bg = context.taxi;
-      fg = context.onTaxi;
-    } else {
-      bg = context.taxiSft;
-      fg = context.accent;
-    }
-
+  Widget _seat(BuildContext context, int n) {
+    final b = trip.seats[n];
+    final mine = b?.clientId == uid;
+    final taken = (b != null && !mine) || trip.whole != null;
+    final sel = picked == n;
+    final Color bg = mine || sel ? context.taxi : taken ? context.line2C : context.surface;
     return GestureDetector(
-      onTap: active && !wholeMode ? onTap : null,
+      onTap: taken || mine || onPick == null ? null : () => onPick!(n),
       child: Container(
-        width: 60, height: 60,
+        width: 64, height: 64,
         decoration: BoxDecoration(
           color: bg,
-          shape: BoxShape.circle,
-          border: picked && !wholeMode
-              ? Border.all(color: context.taxi, width: 3)
-              : null,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: sel ? context.ink : Colors.transparent, width: 2),
         ),
         alignment: Alignment.center,
-        child: Text(
-          isDriver ? label : (booked ? '✗' : label),
-          style: TextStyle(
-            color: fg,
-            fontSize: isDriver ? 22 : 18,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Подтверждение брони ──────────────────────────────────────────
-class _BookedSuccess extends StatelessWidget {
-  final _MockTrip trip;
-  final int seat;
-  final bool wholeCarMode;
-  const _BookedSuccess({
-    required this.trip,
-    required this.seat,
-    required this.wholeCarMode,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 88, height: 88,
-              decoration: BoxDecoration(
-                color: context.taxiSft,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.check_rounded, color: context.accent, size: 44),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              wholeCarMode ? 'Машина забронирована!' : 'Место забронировано!',
-              style: TextStyle(
-                color: context.ink,
-                fontSize: 22, fontWeight: FontWeight.w800,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              wholeCarMode
-                  ? '${trip.time} · ${trip.driver}\nСтоимость: ${_whole(context)}'
-                  : '${trip.time} · Место ${seat + 1}\n${trip.driver} · ${trip.car}',
-              style: TextStyle(
-                color: context.muted, fontSize: 15, height: 1.5),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                color: context.surface,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(
-                'Оплата наличными водителю\nпри посадке',
+            Icon(taken || mine ? Icons.person_rounded : Icons.event_seat_outlined,
+                color: mine || sel ? context.onTaxi : context.muted),
+            Text(mine ? 'Вы' : '$n',
                 style: TextStyle(
-                  color: context.ink, fontSize: 14, height: 1.4),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            const SizedBox(height: 28),
-            SizedBox(
-              width: double.infinity,
-              child: _BookBtn(
-                label: 'Готово',
-                enabled: true,
-                onTap: () {
-                  // Возвращаемся на главный экран
-                  Navigator.of(context).popUntil((r) => r.isFirst);
-                },
-              ),
-            ),
+                  color: mine || sel ? context.onTaxi : context.ink,
+                  fontWeight: FontWeight.w700,
+                )),
           ],
         ),
       ),
     );
   }
-}
-
-class _BookBtn extends StatelessWidget {
-  final String label;
-  final bool enabled;
-  final VoidCallback onTap;
-  const _BookBtn({required this.label, required this.enabled, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: Opacity(
-        opacity: enabled ? 1.0 : 0.45,
-        child: Container(
-          height: 58,
-          decoration: BoxDecoration(
-            color: context.taxi,
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: enabled ? [
-              BoxShadow(
-                color: context.taxi.withOpacity(.4),
-                blurRadius: 24, offset: const Offset(0, 10),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.bg,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: context.lineC, width: 2),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Container(
+                width: 64, height: 64,
+                decoration: BoxDecoration(
+                  color: context.surface,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                alignment: Alignment.center,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.trip_origin_rounded, color: context.muted),
+                    Text('Водитель', style: TextStyle(color: context.muted, fontSize: 10.5)),
+                  ],
+                ),
               ),
-            ] : null,
+              _seat(context, 1),
+            ],
           ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: TextStyle(
-              color: context.onTaxi,
-              fontSize: 17, fontWeight: FontWeight.w700,
-            ),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [_seat(context, 2), _seat(context, 3), _seat(context, 4)],
           ),
-        ),
+        ],
       ),
     );
   }
-}
-
-// ════════════════════════════════════════════════════════════════
-//  Мок-данные рейсов
-// ════════════════════════════════════════════════════════════════
-
-class _MockTrip {
-  final String time, driver, car, plate;
-  final List<bool> seats; // true = занято
-  const _MockTrip({
-    required this.time,
-    required this.driver,
-    required this.car,
-    required this.plate,
-    required this.seats,
-  });
-}
-
-const _dates = [
-  'Сегодня', 'Завтра', '30 окт', '31 окт', '1 ноя', '2 ноя',
-];
-
-final _tripsDay0 = [
-  _MockTrip(time: '07:00', driver: 'Ерлан А.',
-      car: 'Toyota Camry', plate: '045 AKZ 18',
-      seats: [false, false, false, false]),
-  _MockTrip(time: '09:30', driver: 'Марат С.',
-      car: 'Hyundai Sonata', plate: '123 AKZ 18',
-      seats: [true, false, false, true]),
-  _MockTrip(time: '12:00', driver: 'Дамир К.',
-      car: 'Kia K5', plate: '456 AKZ 18',
-      seats: [true, true, false, false]),
-  _MockTrip(time: '15:00', driver: 'Асхат Н.',
-      car: 'Toyota Camry', plate: '789 AKZ 18',
-      seats: [false, false, false, false]),
-  _MockTrip(time: '18:00', driver: 'Рустем О.',
-      car: 'Hyundai Elantra', plate: '012 AKZ 18',
-      seats: [true, false, true, false]),
-];
-
-final _tripsDay1 = [
-  _MockTrip(time: '08:00', driver: 'Ерлан А.',
-      car: 'Toyota Camry', plate: '045 AKZ 18',
-      seats: [false, false, false, false]),
-  _MockTrip(time: '14:00', driver: 'Нурлан Б.',
-      car: 'Toyota Corolla', plate: '321 AKZ 18',
-      seats: [true, true, true, false]),
-  _MockTrip(time: '17:30', driver: 'Марат С.',
-      car: 'Hyundai Sonata', plate: '123 AKZ 18',
-      seats: [false, false, false, false]),
-];
-
-final _tripsDay2 = <_MockTrip>[];
-
-List<_MockTrip> _tripsForDay(int i) {
-  if (i == 0) return _tripsDay0;
-  if (i == 1) return _tripsDay1;
-  return _tripsDay2;
 }

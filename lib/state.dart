@@ -8,6 +8,7 @@ import 'data/orders.dart';
 import 'data/places.dart';
 import 'data/regions.dart';
 import 'data/settings.dart';
+import 'data/trips.dart';
 import 'services/geo_api.dart';
 import 'services/location.dart';
 import 'services/sound.dart';
@@ -22,9 +23,11 @@ class AppState extends ChangeNotifier {
     OrderRepository? orders,
     CatalogRepository? catalog,
     DriverRepository? drivers,
+    TripRepository? trips,
   })  : orders = orders ?? FirestoreOrderRepository(),
         catalog = catalog ?? FirestoreCatalogRepository(),
-        drivers = drivers ?? FirestoreDriverRepository() {
+        drivers = drivers ?? FirestoreDriverRepository(),
+        trips = trips ?? FirestoreTripRepository() {
     _authSub = FirebaseAuth.instance.authStateChanges().listen((u) {
       uid = u?.uid;
       userName = '';
@@ -126,6 +129,7 @@ class AppState extends ChangeNotifier {
   final OrderRepository orders;
   final CatalogRepository catalog;
   final DriverRepository drivers;
+  final TripRepository trips;
 
   /// Анкета водителя этого пользователя (пустая, если не подавал).
   DriverProfile? myDriver;

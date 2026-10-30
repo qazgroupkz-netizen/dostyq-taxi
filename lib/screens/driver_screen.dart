@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'dart:async';
 import '../data/orders.dart';
 import '../services/sound.dart';
+import 'driver_trips_screen.dart';
 import '../state.dart';
 import '../theme.dart';
 import 'package:flutter_map/flutter_map.dart' show MapController;
@@ -97,6 +98,22 @@ class _DriverBody extends StatelessWidget {
                       ),
                       Row(
                         children: [
+                          // Межгород: рейсы этого водителя
+                          if (state.driverCanWork)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: IconButton(
+                                tooltip: 'Мои рейсы',
+                                style: IconButton.styleFrom(
+                                  backgroundColor: const Color(0xFF1F232A),
+                                  fixedSize: const Size(46, 46),
+                                ),
+                                icon: const Icon(Icons.route_rounded, color: Color(0xFFFFD12E)),
+                                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                                  builder: (_) => const DriverTripsScreen(),
+                                )),
+                              ),
+                            ),
                           // Переключатель «На линии»
                           GestureDetector(
                             onTap: () => state.toggleOnline(),
