@@ -8,10 +8,7 @@ import '../config.dart';
 import '../state.dart';
 import '../theme.dart';
 
-String _date(DateTime d) =>
-    '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
-
-/// Анкета водителя по шагам: документы → машина → ИП и E-license.
+/// Анкета водителя по шагам: документы → машина.
 class DriverApplyScreen extends StatefulWidget {
   const DriverApplyScreen({super.key});
   @override
@@ -28,8 +25,6 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
 
   int _step = 0;
   String _vehicle = 'car';
-  DateTime? _ipUntil;
-  DateTime? _elicenseUntil;
   bool _consent = false;
   bool _offer = false;
   bool _sending = false;
@@ -68,9 +63,7 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
     _model.text = p?.carModel ?? '';
     _color.text = p?.carColor ?? '';
     _plate.text = p?.plate ?? '';
-    _ipUntil = p?.ipUntil;
     _vehicle = p?.vehicle ?? 'car';
-    _elicenseUntil = p?.elicenseUntil;
   }
 
   Future<void> _pick(String kind) async {
@@ -123,25 +116,6 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
     }
   }
 
-  Future<void> _pickLater(String kind) async {
-    final now = DateTime.now();
-    final d = await showDatePicker(
-      context: context,
-      initialDate: now.add(const Duration(days: 14)),
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 90)),
-      helpText: 'До какого числа оформите?',
-    );
-    if (d == null) return;
-    setState(() {
-      if (kind == 'ip') {
-        _ipUntil = d;
-      } else {
-        _elicenseUntil = d;
-      }
-    });
-  }
-
   bool get _docsDone => const ['license_front', 'license_back', 'techpass_front', 'techpass_back']
       .every(_photos.containsKey);
 
@@ -151,11 +125,6 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
       _color.text.trim().isNotEmpty &&
       _plate.text.trim().isNotEmpty &&
       _photos.containsKey('car');
-
-  bool _laterOk(String kind) =>
-      _photos.containsKey(kind) || (kind == 'ip' ? _ipUntil : _elicenseUntil) != null;
-
-  bool get _legalDone => _laterOk('ip') && _laterOk('elicense') && _consent && _offer;
 
   Future<void> _submit() async {
     final state = context.read<AppState>();
@@ -175,8 +144,6 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
         plate: _plate.text.trim().toUpperCase(),
         region: state.regionId,
         vehicle: _vehicle,
-        ipUntil: _photos.containsKey('ip') ? null : _ipUntil,
-        elicenseUntil: _photos.containsKey('elicense') ? null : _elicenseUntil,
       );
       if (mounted) {
         setState(() {
@@ -212,9 +179,8 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
 
     final (Widget body, String cta, bool ready, VoidCallback next) = switch (_step) {
       0 => (_docsStep(context), 'Продолжить', _docsDone, () => setState(() => _step = 1)),
-      1 => (_carStep(context), 'Продолжить', _carDone, () => setState(() => _step = 2)),
-      _ => (_legalStep(context), _sending ? 'Отправляем…' : 'Отправить на проверку',
-          _legalDone && !_sending, _submit),
+      _ => (_carStep(context), _sending ? 'Отправляем…' : 'Отправить на проверку',
+          _carDone && _consent && _offer && !_sending, _submit),
     };
 
     return Scaffold(
@@ -481,64 +447,9 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
           width: 220,
           child: _tile(context, 'car', 'Фото машины спереди'),
         ),
-      ],
-    );
-  }
-
-  Widget _laterBlock(BuildContext context, String kind, String title, String hint) {
-    final until = kind == 'ip' ? _ipUntil : _elicenseUntil;
-    final has = _photos.containsKey(kind);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: context.paper,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: has || until != null ? context.jLine : context.lineC),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: TextStyle(color: context.ink, fontSize: 17, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 4),
-          Text(hint, style: TextStyle(color: context.muted, fontSize: 13.5, height: 1.4)),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              SizedBox(width: 150, child: _tile(context, kind, 'Документ')),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('или', style: TextStyle(color: context.muted, fontSize: 14)),
-                    const SizedBox(height: 6),
-                    OutlinedButton(
-                      onPressed: has ? null : () => _pickLater(kind),
-                      child: Text(until == null ? 'Ещё нет — оформлю позже' : 'Оформлю до ${_date(until)}'),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _legalStep(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _title(context, 'ИП и разрешение',
-            'Сфотографируйте документы или укажите, до какого числа оформите их. '
-            'Первые 3 месяца подписка бесплатная.'),
-        const SizedBox(height: 20),
-        _laterBlock(context, 'ip', 'ИП или платформенная занятость',
-            'Регистрация ИП — на egov.kz или в приложении банка, если есть ЭЦП.'),
-        _laterBlock(context, 'elicense', 'Уведомление на E-license',
-            'Уведомление о начале деятельности такси подаётся на elicense.kz, по каждой машине.'),
+        const SizedBox(height: 16),
+        Text('Первые 3 месяца подписка бесплатная.',
+            style: TextStyle(color: context.muted, fontSize: 14)),
         CheckboxListTile(
           contentPadding: EdgeInsets.zero,
           controlAffinity: ListTileControlAffinity.leading,
@@ -556,6 +467,7 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
       ],
     );
   }
+
 }
 
 class _DashedRect extends CustomPainter {

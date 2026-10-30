@@ -23,7 +23,8 @@ const laterDocKinds = <String, String>{
   'elicense': 'Уведомление E-license (такси)',
 };
 
-const driverDocKinds = {...requiredDocKinds, ...laterDocKinds};
+// ИП и E-license владелец решил не требовать в анкете (31.10.2026).
+const driverDocKinds = requiredDocKinds;
 
 class DriverProfile {
   final String uid;
