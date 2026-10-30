@@ -187,7 +187,7 @@ class _ClientScreenState extends State<ClientScreen> {
             car: showCar ? state.driverLocation : null,
             idleCars: isHome ? state.onlineDrivers : const [],
             me: state.myLocation,
-            places: isHome ? dostykPlaces : const [],
+            places: isHome ? state.places : const [],
             onPlaceTap: isHome && !picking ? state.selectPlace : null,
           ),
 
@@ -430,6 +430,7 @@ class _HomePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    final chips = _chipsOf(state.places);
 
     return Column(
       key: const ValueKey('home'),
@@ -492,9 +493,9 @@ class _HomePanel extends StatelessWidget {
             physics: const ClampingScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 16),
             separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemCount: _chips.length,
+            itemCount: chips.length,
             itemBuilder: (_, i) {
-              final (label, color, icon, places) = _chips[i];
+              final (label, color, icon, places) = chips[i];
               return _QuickChip(
                 label: label, color: color, icon: icon,
                 onTap: () => places.length == 1
@@ -562,7 +563,7 @@ class _HomePanel extends StatelessWidget {
     if (state.tariff == Tariff.border) {
       return _CtaButton(
         label: 'Выбрать рейс',
-        sub: '${formatPrice(AppState.seatPrice)} / место',
+        sub: '${formatPrice(state.settings.seatPrice)} / место',
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const TripScreen()),
         ),
@@ -572,7 +573,7 @@ class _HomePanel extends StatelessWidget {
     if (state.tariff == Tariff.whole) {
       return _CtaButton(
         label: 'Выбрать время',
-        sub: formatPrice(AppState.wholeCarPrice),
+        sub: formatPrice(state.settings.wholeCarPrice),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
               builder: (_) => const TripScreen(wholeCarMode: true)),
@@ -583,7 +584,7 @@ class _HomePanel extends StatelessWidget {
     if (state.tariff == Tariff.delivery) {
       return _CtaButton(
         label: 'Оформить доставку',
-        sub: '400 ₸',
+        sub: formatPrice(state.settings.deliveryPrice),
         onTap: () => ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Оформление доставки появится на этапе 6'),
@@ -1596,9 +1597,15 @@ class _TariffCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    var (name, price, note) = _tariffData[tariff]!;
+    final state = context.watch<AppState>();
+    final s = state.settings;
+    var (name, price, note) = switch (tariff) {
+      Tariff.local    => ('Посёлок', formatPrice(s.localPrice), '≈ 3 мин'),
+      Tariff.border   => ('Ушарал', formatPrice(s.seatPrice), 'за место'),
+      Tariff.whole    => ('Вся машина', formatPrice(s.wholeCarPrice), 'до Ушарала'),
+      Tariff.delivery => ('Доставка', formatPrice(s.deliveryPrice), 'по посёлку'),
+    };
     if (tariff == Tariff.local) {
-      final state = context.watch<AppState>();
       price = formatPrice(state.localPriceInt);
       if (state.isKppTrip) {
         note = 'Таможня · КПП';
@@ -1679,12 +1686,6 @@ class _TariffCard extends StatelessWidget {
   }
 }
 
-final _tariffData = {
-  Tariff.local:    ('Посёлок',    '500 ₸',    '≈ 3 мин'),
-  Tariff.border:   ('Ушарал',     formatPrice(AppState.seatPrice),     'за место'),
-  Tariff.whole:    ('Вся машина', formatPrice(AppState.wholeCarPrice), 'до Ушарала'),
-  Tariff.delivery: ('Доставка',   '400 ₸',    'по посёлку'),
-};
 
 
 // ════════════════════════════════════════════════════════════════
@@ -2160,20 +2161,20 @@ class _WishSheet extends StatelessWidget {
 }
 
 // ─── Быстрые чипы: одиночные места и группы (одна «Школа» на все школы) ──────
-final _chips = () {
+List<(String, Color, IconData, List<Place>)> _chipsOf(List<Place> places) {
   final out = <(String, Color, IconData, List<Place>)>[];
   final seen = <String>{};
-  for (final p in dostykPlaces.where((p) => p.chip)) {
+  for (final p in places.where((p) => p.chip)) {
     final g = p.group;
     if (g == null) {
       out.add((p.name, p.color, p.icon, [p]));
     } else if (seen.add(g)) {
       out.add((placeGroups[g] ?? p.name, p.color, p.icon,
-          dostykPlaces.where((x) => x.group == g).toList()));
+          places.where((x) => x.group == g).toList()));
     }
   }
   return out;
-}();
+}
 
 void _choosePlace(BuildContext context, String title, List<Place> places) {
   final state = context.read<AppState>();

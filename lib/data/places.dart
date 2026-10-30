@@ -2,12 +2,33 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 
+class PlaceCategory {
+  final String label;
+  final IconData icon;
+  final Color color;
+  const PlaceCategory(this.label, this.icon, this.color);
+}
+
+const placeCategories = <String, PlaceCategory>{
+  'bank': PlaceCategory('Банк', Icons.account_balance_outlined, Color(0xFF2F7BEA)),
+  'gov': PlaceCategory('Госучреждение', Icons.account_balance_rounded, Color(0xFF4A5160)),
+  'train': PlaceCategory('Транспорт', Icons.train_outlined, Color(0xFF6E56CF)),
+  'kpp': PlaceCategory('Таможня, КПП', Icons.security_rounded, Color(0xFF0B7A75)),
+  'hosp': PlaceCategory('Медицина', Icons.local_hospital_outlined, Color(0xFFE5484D)),
+  'pill': PlaceCategory('Аптека', Icons.local_pharmacy_outlined, Color(0xFF13A35A)),
+  'shop': PlaceCategory('Рынок, магазин', Icons.shopping_bag_outlined, Color(0xFFD97A00)),
+  'school': PlaceCategory('Школа, садик', Icons.school_outlined, Color(0xFFD97A00)),
+  'post': PlaceCategory('Почта', Icons.mail_outline_rounded, Color(0xFF4A5160)),
+  'mosque': PlaceCategory('Мечеть', Icons.mosque_outlined, Color(0xFF6E56CF)),
+  'food': PlaceCategory('Кафе', Icons.restaurant_outlined, Color(0xFFD97A00)),
+  'other': PlaceCategory('Другое', Icons.place_outlined, Color(0xFF5E6571)),
+};
+
 class Place {
   final String id;
   final String name;
   final String sub;
-  final IconData icon;
-  final Color color;
+  final String category;
   final LatLng point;
   final List<String> synonyms;
   final bool chip;
@@ -15,69 +36,81 @@ class Place {
   /// Места одной группы (например, все школы) — одна кнопка-чип со списком.
   final String? group;
 
-  /// Координаты примерные: в OpenStreetMap этого места нет, нужно уточнить на месте.
+  /// Координаты примерные — нужно уточнить на месте.
   final bool approx;
 
   const Place({
     required this.id,
     required this.name,
     required this.sub,
-    required this.icon,
-    required this.color,
+    required this.category,
     required this.point,
     this.synonyms = const [],
     this.chip = false,
     this.group,
     this.approx = false,
   });
+
+  PlaceCategory get _cat => placeCategories[category] ?? placeCategories['other']!;
+  IconData get icon => _cat.icon;
+  Color get color => _cat.color;
+
+  Place copyWith({
+    String? name, String? sub, String? category, LatLng? point,
+    List<String>? synonyms, bool? chip, String? group, bool? approx,
+  }) =>
+      Place(
+        id: id,
+        name: name ?? this.name,
+        sub: sub ?? this.sub,
+        category: category ?? this.category,
+        point: point ?? this.point,
+        synonyms: synonyms ?? this.synonyms,
+        chip: chip ?? this.chip,
+        group: group ?? this.group,
+        approx: approx ?? this.approx,
+      );
 }
 
 const placeGroups = {'school': 'Школа'};
 
-// Координаты взяты из OpenStreetMap (кроме approx).
+// Встроенный список — пока в базе мест ничего нет. Координаты из OpenStreetMap (кроме approx).
 const dostykPlaces = <Place>[
   Place(
-    id: 'bank', name: 'Банк', sub: 'Halyk Bank · ул. Ы. Алибаева',
-    icon: Icons.account_balance_outlined, color: Color(0xFF2F7BEA),
+    id: 'bank', name: 'Банк', sub: 'Halyk Bank · ул. Ы. Алибаева', category: 'bank',
     point: LatLng(45.25570, 82.48545),
     synonyms: ['халык', 'halyk', 'банкомат', 'kaspi', 'каспи'],
   ),
   Place(
-    id: 'akimat', name: 'Акимат', sub: 'Сельский акимат',
-    icon: Icons.account_balance_rounded, color: Color(0xFF4A5160),
+    id: 'akimat', name: 'Акимат', sub: 'Сельский акимат', category: 'gov',
     point: LatLng(45.25623, 82.49204),
     synonyms: ['әкімдік', 'акимдик', 'администрация', 'аким'],
   ),
   Place(
-    id: 'rail', name: 'Вокзал', sub: 'Железнодорожный вокзал Достык',
-    icon: Icons.train_outlined, color: Color(0xFF6E56CF),
+    id: 'rail', name: 'Вокзал', sub: 'Железнодорожный вокзал Достык', category: 'train',
     point: LatLng(45.25286, 82.48665),
     synonyms: ['станция', 'жд', 'темир жол', 'поезд'],
     chip: true,
   ),
   Place(
-    id: 'kpp', name: 'Таможня · КПП', sub: 'Пограничный переход',
-    icon: Icons.security_rounded, color: Color(0xFF0B7A75),
+    id: 'kpp', name: 'Таможня · КПП', sub: 'Пограничный переход', category: 'kpp',
     point: LatLng(45.23342, 82.52075),
     synonyms: ['таможня', 'кпп', 'граница', 'шекара', 'кеден', 'пост'],
     chip: true,
   ),
   Place(
-    id: 'hosp', name: 'Больница', sub: 'Поликлиника с. Достык',
-    icon: Icons.local_hospital_outlined, color: Color(0xFFE5484D),
+    id: 'hosp', name: 'Больница', sub: 'Поликлиника с. Достык', category: 'hosp',
     point: LatLng(45.25161, 82.50019),
     synonyms: ['больничка', 'аурухана', 'поликлиника', 'скорая', 'врач', 'емхана'],
     chip: true,
   ),
   Place(
-    id: 'apteka', name: 'Аптека', sub: 'Возле базара',
-    icon: Icons.local_pharmacy_outlined, color: Color(0xFF13A35A),
+    id: 'apteka', name: 'Аптека', sub: 'Возле базара', category: 'pill',
     point: LatLng(45.25529, 82.48529),
     synonyms: ['дарыхана', 'лекарства'],
   ),
   Place(
-    id: 'bazar', name: 'Базар', sub: 'Рынок',
-    icon: Icons.shopping_bag_outlined, color: Color(0xFFD97A00),
+    id: 'bazar', name: 'Базар', sub: 'Рынок', category: 'shop',
     point: LatLng(45.25495, 82.48624),
     synonyms: ['рынок', 'нарык', 'базар'],
     chip: true,
@@ -85,41 +118,38 @@ const dostykPlaces = <Place>[
   // В OSM отмечена одна школа («Школа с. Достык», ул. Молдагулова) — считаем её «Достық».
   Place(
     id: 'school-dostyq', name: 'Достық орта мектебі', sub: 'Школа «Достық» · ул. Молдагулова',
-    icon: Icons.school_outlined, color: Color(0xFFD97A00),
+    category: 'school',
     point: LatLng(45.25306, 82.49387),
     synonyms: ['школа', 'мектеп', 'сш', 'достык', 'средняя школа'],
     chip: true, group: 'school',
   ),
   Place(
     id: 'school-keleshek', name: 'Школа «Келешек»', sub: 'Келешек · место уточняется',
-    icon: Icons.school_outlined, color: Color(0xFFD97A00),
+    category: 'school',
     point: LatLng(45.25850, 82.48950),
     synonyms: ['школа', 'мектеп', 'келешек', 'kelechek'],
     chip: true, group: 'school', approx: true,
   ),
   Place(
     id: 'school-momyshuly', name: 'Школа им. Б. Момышұлы', sub: 'Место уточняется',
-    icon: Icons.school_outlined, color: Color(0xFFD97A00),
+    category: 'school',
     point: LatLng(45.25400, 82.49600),
     synonyms: ['школа', 'мектеп', 'момышулы', 'момышұлы', 'бауыржан'],
     chip: true, group: 'school', approx: true,
   ),
   Place(
-    id: 'post', name: 'Почта', sub: 'Казпочта · место уточняется',
-    icon: Icons.mail_outline_rounded, color: Color(0xFF4A5160),
+    id: 'post', name: 'Почта', sub: 'Казпочта · место уточняется', category: 'post',
     point: LatLng(45.25550, 82.48950),
     synonyms: ['казпочта', 'пошта', 'посылка'],
     approx: true,
   ),
   Place(
-    id: 'mosque', name: 'Мечеть', sub: 'Место уточняется',
-    icon: Icons.mosque_outlined, color: Color(0xFF6E56CF),
+    id: 'mosque', name: 'Мечеть', sub: 'Место уточняется', category: 'mosque',
     point: LatLng(45.25480, 82.49150),
     synonyms: ['мешіт', 'мешит', 'намаз'],
     approx: true,
   ),
 ];
-
 // ─── Поиск с опечатками (порт из прототипа) ──────────────────────────────
 
 const _kz = {
@@ -206,7 +236,7 @@ double _tscore(List<String> qw, String cand) {
   return tot / qw.length;
 }
 
-List<Place> searchPlaces(String raw) {
+List<Place> searchPlaces(String raw, List<Place> places) {
   final lo = raw.toLowerCase();
   final variants = <String>[_clean(lo)];
   if (RegExp(r'[a-z]').hasMatch(lo)) {
@@ -217,7 +247,7 @@ List<Place> searchPlaces(String raw) {
   for (var vi = 0; vi < variants.length; vi++) {
     final words = variants[vi].split(' ').where((w) => w.isNotEmpty).toList();
     if (words.isEmpty) continue;
-    for (final p in dostykPlaces) {
+    for (final p in places) {
       var best = 0.0;
       for (final k in [p.name, p.sub, ...p.synonyms]) {
         best = max(best, _tscore(words, _norm(k)));
@@ -232,11 +262,11 @@ List<Place> searchPlaces(String raw) {
   return list;
 }
 
-Place? nearestPlace(LatLng p, {double maxMeters = 250}) {
+Place? nearestPlace(LatLng p, List<Place> places, {double maxMeters = 250}) {
   final d = Distance();
   Place? best;
   var bd = maxMeters;
-  for (final pl in dostykPlaces) {
+  for (final pl in places) {
     final m = d(p, pl.point);
     if (m < bd) {
       bd = m;

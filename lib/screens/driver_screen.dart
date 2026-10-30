@@ -350,7 +350,7 @@ class _ManualPlaceScreenState extends State<_ManualPlaceScreen> {
             centerPin: true,
             pinLabel: 'Машина здесь',
             initialCenter: state.myLocation ?? dostykCenter,
-            places: dostykPlaces,
+            places: state.places,
           ),
           Positioned(
             top: top + 12, left: 12,
@@ -660,7 +660,8 @@ class _OfferCard extends StatefulWidget {
 }
 
 class _OfferCardState extends State<_OfferCard> {
-  int _secs = 20;
+  late int _total = context.read<AppState>().settings.offerSeconds;
+  late int _secs = _total;
   Timer? _timer;
 
   @override
@@ -685,7 +686,7 @@ class _OfferCardState extends State<_OfferCard> {
   Widget build(BuildContext context) {
     final state = context.read<AppState>();
     final order = widget.order;
-    final progress = (_secs / 20.0).clamp(0.0, 1.0);
+    final progress = (_secs / _total).clamp(0.0, 1.0);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),

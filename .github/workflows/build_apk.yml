@@ -106,8 +106,15 @@ jobs:
 
       - run: flutter pub get
 
+      - name: Build admin
+        run: |
+          flutter build web --release -t lib/admin/admin_main.dart --base-href /dostyq-taxi/admin/ --web-renderer canvaskit --pwa-strategy none
+          mv build/web build/admin_web
+
       - name: Build web
-        run: flutter build web --release --base-href /dostyq-taxi/ --web-renderer canvaskit --pwa-strategy none
+        run: |
+          flutter build web --release --base-href /dostyq-taxi/ --web-renderer canvaskit --pwa-strategy none
+          mv build/admin_web build/web/admin
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3

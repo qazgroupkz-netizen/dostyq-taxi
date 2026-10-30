@@ -64,7 +64,7 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final results = _q.isEmpty ? dostykPlaces : searchPlaces(_q);
+    final results = _q.isEmpty ? state.places : searchPlaces(_q, state.places);
     final dist = Distance();
 
     return Scaffold(

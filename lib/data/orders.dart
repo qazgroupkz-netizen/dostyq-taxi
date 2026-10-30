@@ -69,6 +69,9 @@ abstract class OrderRepository {
 
   Future<String> userName(String uid);
 
+  /// role: client / driver / manager / admin.
+  Future<({String name, String role})> userProfile(String uid);
+
   Future<void> updateDriverLocation(String uid, Geo geo);
 
   Future<void> setDriverOnline(String uid, bool online);
@@ -198,9 +201,16 @@ class FirestoreOrderRepository implements OrderRepository {
       _orders.doc(id).update(fields);
 
   @override
-  Future<String> userName(String uid) async {
+  Future<String> userName(String uid) async => (await userProfile(uid)).name;
+
+  @override
+  Future<({String name, String role})> userProfile(String uid) async {
     final d = await _db.collection('users').doc(uid).get();
-    return d.data()?['name'] as String? ?? '';
+    final m = d.data();
+    return (
+      name: m?['name'] as String? ?? '',
+      role: m?['role'] as String? ?? 'client',
+    );
   }
 
   CollectionReference<Map<String, dynamic>> get _drivers => _db.collection('drivers');

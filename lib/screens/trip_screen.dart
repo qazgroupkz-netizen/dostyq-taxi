@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../state.dart';
 import '../theme.dart';
 
-final _seat = formatPrice(AppState.seatPrice);
-final _whole = formatPrice(AppState.wholeCarPrice);
+String _seat(BuildContext c) => formatPrice(c.read<AppState>().settings.seatPrice);
+String _whole(BuildContext c) => formatPrice(c.read<AppState>().settings.wholeCarPrice);
 
 // ════════════════════════════════════════════════════════════════
 //  Экран рейсов Достык → Ушарал
@@ -64,8 +65,8 @@ class _TripScreenState extends State<TripScreen> {
                       ),
                       Text(
                         widget.wholeCarMode
-                            ? '$_whole · 160 км'
-                            : '$_seat / место · 160 км',
+                            ? '${_whole(context)} · 160 км'
+                            : '${_seat(context)} / место · 160 км',
                         style: TextStyle(color: context.muted, fontSize: 13),
                       ),
                     ],
@@ -258,7 +259,7 @@ class _TripCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    _whole,
+                    _whole(context),
                     style: TextStyle(
                       color: context.taxi,
                       fontSize: 14, fontWeight: FontWeight.w700,
@@ -389,8 +390,8 @@ class _SeatPickerState extends State<_SeatPicker> {
                 ),
               _BookBtn(
                 label: widget.wholeCarMode
-                    ? 'Забронировать машину · $_whole'
-                    : 'Забронировать место · $_seat',
+                    ? 'Забронировать машину · ${_whole(context)}'
+                    : 'Забронировать место · ${_seat(context)}',
                 enabled: widget.wholeCarMode || _pickedSeat >= 0,
                 onTap: () => setState(() => _booked = true),
               ),
@@ -622,7 +623,7 @@ class _BookedSuccess extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               wholeCarMode
-                  ? '${trip.time} · ${trip.driver}\nСтоимость: $_whole'
+                  ? '${trip.time} · ${trip.driver}\nСтоимость: ${_whole(context)}'
                   : '${trip.time} · Место ${seat + 1}\n${trip.driver} · ${trip.car}',
               style: TextStyle(
                 color: context.muted, fontSize: 15, height: 1.5),

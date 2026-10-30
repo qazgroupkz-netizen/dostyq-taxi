@@ -2,8 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:latlong2/latlong.dart';
+import 'data/catalog.dart';
 import 'data/orders.dart';
 import 'data/places.dart';
+import 'data/settings.dart';
 import 'services/geo_api.dart';
 import 'services/location.dart';
 import 'services/sound.dart';
@@ -14,19 +16,33 @@ enum DriverState { offline, waiting, offer, active }
 enum Tariff { local, border, whole, delivery }
 
 class AppState extends ChangeNotifier {
-  AppState({OrderRepository? orders})
-      : orders = orders ?? FirestoreOrderRepository() {
+  AppState({OrderRepository? orders, CatalogRepository? catalog})
+      : orders = orders ?? FirestoreOrderRepository(),
+        catalog = catalog ?? FirestoreCatalogRepository() {
     _authSub = FirebaseAuth.instance.authStateChanges().listen((u) {
       uid = u?.uid;
       userName = '';
+      role = 'client';
       profileLoaded = false;
       _onlineSub?.cancel();
       _onlineSub = null;
+      _settingsSub?.cancel();
+      _settingsSub = null;
+      _placesSub?.cancel();
+      _placesSub = null;
       if (u != null) {
         _onlineSub = this.orders.watchOnlineDrivers().listen((list) {
           onlineDrivers = [for (final g in list) LatLng(g.lat, g.lng)];
           notifyListeners();
         });
+        _settingsSub = this.catalog.watchSettings().listen((s) {
+          settings = s;
+          notifyListeners();
+        }, onError: (_) {});
+        _placesSub = this.catalog.watchPlaces().listen((list) {
+          placesFromDb = list;
+          notifyListeners();
+        }, onError: (_) {});
       }
       notifyListeners();
       if (u != null) reloadProfile();
@@ -34,16 +50,31 @@ class AppState extends ChangeNotifier {
   }
 
   final OrderRepository orders;
+  final CatalogRepository catalog;
   StreamSubscription<User?>? _authSub;
   String? uid;
   String userName = '';
+  String role = 'client';
   bool profileLoaded = false;
+
+  bool get isAdmin => role == 'admin' || role == 'manager';
+
+  // ─── Цены и места из админки ────────────────────────────────────────────
+  TariffSettings settings = const TariffSettings();
+  StreamSubscription<TariffSettings>? _settingsSub;
+
+  /// Места из базы; пусто — админ ещё не загрузил, берём встроенный список.
+  List<Place> placesFromDb = const [];
+  StreamSubscription<List<Place>>? _placesSub;
+  List<Place> get places => placesFromDb.isEmpty ? dostykPlaces : placesFromDb;
 
   Future<void> reloadProfile() async {
     final id = uid;
     if (id == null) return;
     try {
-      userName = await orders.userName(id);
+      final p = await orders.userProfile(id);
+      userName = p.name;
+      role = p.role;
     } catch (_) {
       userName = '';
     }
@@ -144,9 +175,9 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  static Future<(String, String?)> _addressFor(LatLng p) async {
+  Future<(String, String?)> _addressFor(LatLng p) async {
     final addr = await GeoApi.reverse(p);
-    final near = nearestPlace(p)?.name;
+    final near = nearestPlace(p, places)?.name;
     return (addr ?? 'Точка на карте', near);
   }
 
@@ -620,6 +651,8 @@ class AppState extends ChangeNotifier {
     _gpsSub?.cancel();
     _simTimer?.cancel();
     _onlineSub?.cancel();
+    _settingsSub?.cancel();
+    _placesSub?.cancel();
     super.dispose();
   }
 
@@ -633,15 +666,6 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  // По посёлку 500 ₸, поездка длиннее 3 км — 2 000 ₸. Позже — из настроек в админке.
-  static const localPrice = 500;
-  static const localFarPrice = 2000;
-  static const localFarMeters = 3000;
-
-  // Ушарал: место 3 500 ₸, вся машина — 4 места.
-  static const seatPrice = 3500;
-  static const wholeCarPrice = seatPrice * 4;
-
   /// Длина поездки: по дорогам, а пока маршрут не посчитан — по прямой.
   double? get tripMeters {
     final to = destPoint;
@@ -649,30 +673,32 @@ class AppState extends ChangeNotifier {
     return route?.meters ?? Distance()(pickup, to);
   }
 
-  bool get isFarTrip => (tripMeters ?? 0) > localFarMeters;
+  bool get isFarTrip => (tripMeters ?? 0) > settings.farMeters;
 
-  // До Таможни/КПП и обратно — своя цена, вместо «дальше 3 км».
-  static const kppPrice = 1500;
-
+  /// До Таможни/КПП и обратно — своя цена, вместо «дальше N км».
   bool get isKppTrip {
     final to = destPoint;
     if (to == null) return false;
-    final kpp = dostykPlaces.firstWhere((p) => p.id == 'kpp').point;
     final d = Distance();
-    return d(to, kpp) < 500 || d(pickup, kpp) < 500;
+    for (final p in places) {
+      if (p.category != 'kpp') continue;
+      if (d(to, p.point) < 500 || d(pickup, p.point) < 500) return true;
+    }
+    return false;
   }
 
-  int get localPriceInt =>
-      isKppTrip ? kppPrice : isFarTrip ? localFarPrice : localPrice;
+  int get localPriceInt => isKppTrip
+      ? settings.kppPrice
+      : isFarTrip ? settings.farPrice : settings.localPrice;
 
   String get tariffPrice => formatPrice(tariffPriceInt);
 
   int get tariffPriceInt {
     switch (tariff) {
       case Tariff.local:    return localPriceInt;
-      case Tariff.border:   return seatPrice;
-      case Tariff.whole:    return wholeCarPrice;
-      case Tariff.delivery: return 400;
+      case Tariff.border:   return settings.seatPrice;
+      case Tariff.whole:    return settings.wholeCarPrice;
+      case Tariff.delivery: return settings.deliveryPrice;
     }
   }
 
