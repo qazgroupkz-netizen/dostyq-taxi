@@ -11,6 +11,7 @@ import '../screens/auth_screen.dart';
 import '../config.dart';
 import '../state.dart';
 import '../theme.dart';
+import 'analytics_page.dart';
 import 'dispatch_page.dart';
 import 'drivers_page.dart';
 import 'intercity_page.dart';
@@ -138,6 +139,8 @@ class _AdminHomeState extends State<AdminHome> {
         page: OrdersPage(), ownerOnly: false),
     (group: 'Оперативно', icon: Icons.domain_rounded, label: 'Межгород',
         page: IntercityPage(), ownerOnly: false),
+    (group: 'Аналитика', icon: Icons.insights_rounded, label: 'Аналитика и финансы',
+        page: AnalyticsPage(), ownerOnly: true),
     (group: 'Водители', icon: Icons.group_outlined, label: 'Водители и анкеты',
         page: DriversPage(), ownerOnly: true),
     (group: 'Настройки', icon: Icons.place_outlined, label: 'Адреса',
