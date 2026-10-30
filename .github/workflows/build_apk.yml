@@ -110,6 +110,10 @@ jobs:
           sed -i 's|<title>.*</title>|<title>ALAKOL TAXI</title>|; s|apple-mobile-web-app-title" content="[^"]*"|apple-mobile-web-app-title" content="ALAKOL TAXI"|' web/index.html
           sed -i 's/"name": "[^"]*"/"name": "ALAKOL TAXI"/; s/"short_name": "[^"]*"/"short_name": "ALAKOL TAXI"/' web/manifest.json
           grep -q 'ALAKOL TAXI' web/index.html || { echo 'title patch failed'; cat web/index.html; exit 1; }
+          # iPhone Safari при открытии клавиатуры сам прокручивает страницу вверх, а Flutter ещё и
+          # поднимает поле — двойной сдвиг, верх уезжает за экран. Возвращаем прокрутку страницы в 0.
+          sed -i 's#</body>#<script>(function(){var v=window.visualViewport;if(!v)return;function f(){if(window.scrollY!==0){window.scrollTo(0,0);}}v.addEventListener("scroll",f);v.addEventListener("resize",f);window.addEventListener("scroll",f);})();</script></body>#' web/index.html
+          grep -q 'visualViewport' web/index.html || { echo 'keyboard patch failed'; cat web/index.html; exit 1; }
 
       - run: flutter pub get
 
