@@ -582,18 +582,27 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  String get tariffPrice {
-    switch (tariff) {
-      case Tariff.local:    return '500 ₸';
-      case Tariff.border:   return '5 000 ₸';
-      case Tariff.whole:    return '18 000 ₸';
-      case Tariff.delivery: return '400 ₸';
-    }
+  // По посёлку 500 ₸, поездка длиннее 3 км — 2 000 ₸. Позже — из настроек в админке.
+  static const localPrice = 500;
+  static const localFarPrice = 2000;
+  static const localFarMeters = 3000;
+
+  /// Длина поездки: по дорогам, а пока маршрут не посчитан — по прямой.
+  double? get tripMeters {
+    final to = destPoint;
+    if (to == null) return null;
+    return route?.meters ?? Distance()(pickup, to);
   }
+
+  bool get isFarTrip => (tripMeters ?? 0) > localFarMeters;
+
+  int get localPriceInt => isFarTrip ? localFarPrice : localPrice;
+
+  String get tariffPrice => formatPrice(tariffPriceInt);
 
   int get tariffPriceInt {
     switch (tariff) {
-      case Tariff.local:    return 500;
+      case Tariff.local:    return localPriceInt;
       case Tariff.border:   return 5000;
       case Tariff.whole:    return 18000;
       case Tariff.delivery: return 400;
@@ -602,6 +611,16 @@ class AppState extends ChangeNotifier {
 
   String get paymentLabel =>
       paymentMethod == 'kaspi' ? 'Kaspi' : 'Наличные';
+}
+
+String formatPrice(int p) {
+  final s = p.toString();
+  final b = StringBuffer();
+  for (var i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) b.write(' ');
+    b.write(s[i]);
+  }
+  return '$b ₸';
 }
 
 // ─── Мок-данные (для Stage 2 — без сервера) ─────────────────────────────────

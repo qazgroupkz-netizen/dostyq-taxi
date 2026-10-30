@@ -1596,7 +1596,12 @@ class _TariffCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final data = _tariffData[tariff]!;
+    var (name, price, note) = _tariffData[tariff]!;
+    if (tariff == Tariff.local) {
+      final state = context.watch<AppState>();
+      price = formatPrice(state.localPriceInt);
+      if (state.isFarTrip) note = 'дальше 3 км';
+    }
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       width: 122,
@@ -1632,18 +1637,18 @@ class _TariffCard extends StatelessWidget {
                   children: [
                     CarSvg(tariff: tariff),
                     const SizedBox(height: 4),
-                    Text(data.$1,
+                    Text(name,
                         style: TextStyle(
                           color: context.ink,
                           fontSize: 15, fontWeight: FontWeight.w700,
                         )),
                     const SizedBox(height: 1),
-                    Text(data.$2,
+                    Text(price,
                         style: TextStyle(
                           color: context.ink,
                           fontSize: 16, fontWeight: FontWeight.w800,
                         )),
-                    Text(data.$3,
+                    Text(note,
                         style: TextStyle(
                           color: context.muted, fontSize: 12, fontWeight: FontWeight.w500)),
                   ],
