@@ -692,95 +692,12 @@ class _HomePanel extends StatelessWidget {
   }
 
   /// «Что везём» для грузового или «что купить / забрать» для доставки.
-  Future<(String, int?)?> _askWhat(BuildContext context, bool cargo) {
-    final ctrl = TextEditingController();
-    final priceCtrl = TextEditingController();
-    var loaders = false;
-    return showModalBottomSheet<(String, int?)>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) => Container(
-          decoration: BoxDecoration(
-            color: ctx.paper,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          padding: EdgeInsets.fromLTRB(
-              20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom + 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(cargo ? 'Что везём?' : 'Что привезти?',
-                  style: TextStyle(color: ctx.ink, fontSize: 22, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 4),
-              Text(
-                cargo
-                    ? 'Например: холодильник и 10 мешков цемента'
-                    : 'Что купить или забрать и где. Например: хлеб и молоко из «Planeta». '
-                        'Покупки оплачиваете водителю отдельно.',
-                style: TextStyle(color: ctx.muted, fontSize: 14, height: 1.4),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: ctrl,
-                autofocus: true,
-                minLines: 2,
-                maxLines: 4,
-                textCapitalization: TextCapitalization.sentences,
-                style: TextStyle(color: ctx.ink, fontSize: 16),
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: ctx.surface,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              if (cargo) ...[
-                const SizedBox(height: 10),
-                TextField(
-                  controller: priceCtrl,
-                  keyboardType: TextInputType.number,
-                  style: TextStyle(color: ctx.ink, fontSize: 16),
-                  decoration: InputDecoration(
-                    labelText: 'Ваша цена, ₸ (можно не указывать)',
-                    helperText: 'Водители предложат свою цену — вы выберете',
-                    filled: true,
-                    fillColor: ctx.surface,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-              ],
-              if (cargo)
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  value: loaders,
-                  onChanged: (v) => setSt(() => loaders = v ?? false),
-                  title: const Text('Нужны грузчики'),
-                ),
-              const SizedBox(height: 10),
-              _CtaButton(
-                label: cargo ? 'Найти грузовую машину' : 'Заказать',
-                onTap: () {
-                  final t = ctrl.text.trim();
-                  if (t.isEmpty) return;
-                  final p = int.tryParse(priceCtrl.text.replaceAll(RegExp(r'\D'), ''));
-                  Navigator.pop(ctx, (loaders ? '$t · нужны грузчики' : t, p));
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  /// Отдельный экран, а не всплывающее окно: на iPhone клавиатура сдвигала окно и обрезала верх.
+  Future<(String, int?)?> _askWhat(BuildContext context, bool cargo) =>
+      Navigator.of(context).push<(String, int?)>(MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => _WhatScreen(cargo: cargo),
+      ));
 
   void _showPaymentSheet(BuildContext context, AppState state) {
     showModalBottomSheet(
@@ -2728,6 +2645,104 @@ class _PlacePanel extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _WhatScreen extends StatefulWidget {
+  final bool cargo;
+  const _WhatScreen({required this.cargo});
+  @override
+  State<_WhatScreen> createState() => _WhatScreenState();
+}
+
+class _WhatScreenState extends State<_WhatScreen> {
+  final _what = TextEditingController();
+  final _price = TextEditingController();
+  bool _loaders = false;
+
+  @override
+  void dispose() {
+    _what.dispose();
+    _price.dispose();
+    super.dispose();
+  }
+
+  void _done() {
+    final t = _what.text.trim();
+    if (t.isEmpty) return;
+    final p = int.tryParse(_price.text.replaceAll(RegExp(r'\D'), ''));
+    Navigator.pop(context, (_loaders ? '$t · нужны грузчики' : t, p));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cargo = widget.cargo;
+    InputDecoration deco(String? label, {String? helper}) => InputDecoration(
+          labelText: label,
+          helperText: helper,
+          filled: true,
+          fillColor: context.surface,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+        );
+    return Scaffold(
+      backgroundColor: context.paper,
+      appBar: AppBar(
+        backgroundColor: context.paper,
+        elevation: 0,
+        title: Text(cargo ? 'Грузовое' : 'Доставка'),
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          children: [
+            Text(cargo ? 'Что везём?' : 'Что привезти?',
+                style: TextStyle(color: context.ink, fontSize: 24, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            Text(
+              cargo
+                  ? 'Например: холодильник и 10 мешков цемента'
+                  : 'Что купить или забрать и где. Например: хлеб и молоко из «Planeta». '
+                      'Покупки оплачиваете водителю отдельно.',
+              style: TextStyle(color: context.muted, fontSize: 14.5, height: 1.4),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _what,
+              minLines: 3,
+              maxLines: 5,
+              textCapitalization: TextCapitalization.sentences,
+              style: TextStyle(color: context.ink, fontSize: 16),
+              decoration: deco(null),
+            ),
+            if (cargo) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _price,
+                keyboardType: TextInputType.number,
+                style: TextStyle(color: context.ink, fontSize: 16),
+                decoration: deco('Ваша цена, ₸ (можно не указывать)',
+                    helper: 'Водители предложат свою цену — вы выберете'),
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                value: _loaders,
+                onChanged: (v) => setState(() => _loaders = v ?? false),
+                title: const Text('Нужны грузчики'),
+              ),
+            ],
+            const SizedBox(height: 16),
+            _CtaButton(
+              label: cargo ? 'Найти грузовую машину' : 'Заказать',
+              onTap: _done,
+            ),
+          ],
+        ),
       ),
     );
   }
