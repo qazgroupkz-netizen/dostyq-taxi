@@ -3,10 +3,13 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../firebase_options.dart';
+import '../services/sound.dart';
 import '../screens/auth_screen.dart';
 import '../state.dart';
 import '../theme.dart';
+import 'dispatch_page.dart';
 import 'drivers_page.dart';
+import 'orders_page.dart';
 import 'places_page.dart';
 import 'regions_page.dart';
 import 'tariffs_page.dart';
@@ -32,6 +35,10 @@ class AdminApp extends StatelessWidget {
       title: 'DOSTYQ TAXI · Админ',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
+      builder: (context, child) => Listener(
+        onPointerDown: (_) => unlockSound(),
+        child: child,
+      ),
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snap) {
@@ -115,29 +122,30 @@ class AdminHome extends StatefulWidget {
 class _AdminHomeState extends State<AdminHome> {
   int _page = 0;
 
-  static const _pages = [
-    (Icons.badge_outlined, 'Водители'),
-    (Icons.tune_rounded, 'Тарифы'),
-    (Icons.place_outlined, 'Места'),
-    (Icons.location_city_rounded, 'Районы'),
+  // Последнее поле: раздел только для админа (менеджер его не видит).
+  static const _all = <(IconData, String, Widget, bool)>[
+    (Icons.headset_mic_outlined, 'Диспетчерская', DispatchPage(), false),
+    (Icons.receipt_long_outlined, 'Заказы', OrdersPage(), false),
+    (Icons.badge_outlined, 'Водители', DriversPage(), true),
+    (Icons.tune_rounded, 'Тарифы', TariffsPage(), true),
+    (Icons.place_outlined, 'Места', PlacesPage(), true),
+    (Icons.location_city_rounded, 'Районы', RegionsPage(), true),
   ];
 
   @override
   Widget build(BuildContext context) {
     final wide = MediaQuery.of(context).size.width >= 900;
-    final body = switch (_page) {
-      0 => const DriversPage(),
-      1 => const TariffsPage(),
-      2 => const PlacesPage(),
-      _ => const RegionsPage(),
-    };
+    final isOwner = context.select<AppState, bool>((s) => s.role == 'admin');
+    final pages = [for (final p in _all) if (isOwner || !p.$4) p];
+    if (_page >= pages.length) _page = 0;
+    final body = pages[_page].$3;
     final name = context.select<AppState, String>((s) => s.userName);
 
     if (!wide) {
       return Scaffold(
         backgroundColor: context.bg,
         appBar: AppBar(
-          title: Text(_pages[_page].$2),
+          title: Text(pages[_page].$2),
           actions: [
             const _RegionPicker(),
             IconButton(
@@ -152,7 +160,7 @@ class _AdminHomeState extends State<AdminHome> {
           selectedIndex: _page,
           onDestinationSelected: (i) => setState(() => _page = i),
           destinations: [
-            for (final (icon, label) in _pages)
+            for (final (icon, label, _, _) in pages)
               NavigationDestination(icon: Icon(icon), label: label),
           ],
         ),
@@ -198,7 +206,7 @@ class _AdminHomeState extends State<AdminHome> {
               ),
             ),
             destinations: [
-              for (final (icon, label) in _pages)
+              for (final (icon, label, _, _) in pages)
                 NavigationRailDestination(icon: Icon(icon), label: Text(label)),
             ],
           ),

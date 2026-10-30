@@ -5,6 +5,8 @@ class TaxiOrder {
   final String status;
   final String clientId;
   final String clientName;
+  final String clientPhone;
+  final String createdBy;
   final String from;
   final double? fromLat;
   final double? fromLng;
@@ -25,6 +27,8 @@ class TaxiOrder {
     required this.status,
     required this.clientId,
     required this.clientName,
+    this.clientPhone = '',
+    this.createdBy = 'app',
     required this.from,
     this.fromLat,
     this.fromLng,
@@ -56,11 +60,19 @@ abstract class OrderRepository {
     required String tariff,
     required int price,
     required String payment,
+    String clientPhone = '',
+    String createdBy = 'app',
   });
 
   Stream<TaxiOrder?> watch(String id);
 
   Stream<List<TaxiOrder>> watchSearching(String region);
+
+  /// Все заказы района, новые сверху (для диспетчерской).
+  Stream<List<TaxiOrder>> watchRegion(String region);
+
+  /// Заказы, назначенные этому водителю (в том числе менеджером).
+  Stream<List<TaxiOrder>> watchAssigned(String driverId);
 
   /// false — заказ уже забрал другой водитель или клиент отменил.
   Future<bool> accept(String id,
@@ -102,6 +114,8 @@ class FirestoreOrderRepository implements OrderRepository {
       status: m['status'] as String? ?? 'searching',
       clientId: m['clientId'] as String? ?? '',
       clientName: m['clientName'] as String? ?? '',
+      clientPhone: m['clientPhone'] as String? ?? '',
+      createdBy: m['createdBy'] as String? ?? 'app',
       from: label(m['from']),
       fromLat: coord(m['from'], 'lat'),
       fromLng: coord(m['from'], 'lng'),
@@ -131,10 +145,13 @@ class FirestoreOrderRepository implements OrderRepository {
     required String tariff,
     required int price,
     required String payment,
+    String clientPhone = '',
+    String createdBy = 'app',
   }) async {
     final ref = await _orders.add({
       'clientId': clientId,
       'clientName': clientName,
+      'clientPhone': clientPhone,
       'from': {
         'label': from,
         if (fromGeo != null) 'lat': fromGeo.lat,
@@ -150,7 +167,7 @@ class FirestoreOrderRepository implements OrderRepository {
       'price': price,
       'payment': payment,
       'status': 'searching',
-      'createdBy': 'app',
+      'createdBy': createdBy,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -160,6 +177,20 @@ class FirestoreOrderRepository implements OrderRepository {
   @override
   Stream<TaxiOrder?> watch(String id) =>
       _orders.doc(id).snapshots().map((d) => d.exists ? _fromDoc(d) : null);
+
+  @override
+  Stream<List<TaxiOrder>> watchRegion(String region) =>
+      _orders.where('region', isEqualTo: region).snapshots().map((q) {
+        final list = q.docs.map(_fromDoc).toList();
+        list.sort((a, b) => (b.createdAt ?? DateTime.now()).compareTo(a.createdAt ?? DateTime.now()));
+        return list;
+      });
+
+  @override
+  Stream<List<TaxiOrder>> watchAssigned(String driverId) => _orders
+      .where('driverId', isEqualTo: driverId)
+      .snapshots()
+      .map((q) => q.docs.map(_fromDoc).toList());
 
   @override
   Stream<List<TaxiOrder>> watchSearching(String region) => _orders

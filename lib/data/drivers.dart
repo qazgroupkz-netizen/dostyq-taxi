@@ -42,6 +42,11 @@ class DriverProfile {
   final DateTime? ipUntil;
   final DateTime? elicenseUntil;
 
+  /// На линии и где сейчас (для диспетчерской).
+  final bool online;
+  final double? lat;
+  final double? lng;
+
   const DriverProfile({
     required this.uid,
     this.name = '',
@@ -56,6 +61,9 @@ class DriverProfile {
     this.submittedAt,
     this.ipUntil,
     this.elicenseUntil,
+    this.online = false,
+    this.lat,
+    this.lng,
   });
 
   String get car => [carColor, carModel].where((s) => s.isNotEmpty).join(' ');
@@ -89,6 +97,9 @@ class DriverProfile {
         submittedAt: (m['submittedAt'] as Timestamp?)?.toDate(),
         ipUntil: (m['ipUntil'] as Timestamp?)?.toDate(),
         elicenseUntil: (m['elicenseUntil'] as Timestamp?)?.toDate(),
+        online: m['status'] == 'online',
+        lat: ((m['location'] as Map?)?['lat'] as num?)?.toDouble(),
+        lng: ((m['location'] as Map?)?['lng'] as num?)?.toDouble(),
       );
 }
 

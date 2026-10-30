@@ -33,6 +33,9 @@ class TaxiMap extends StatefulWidget {
   final List<Place> places;
   final ValueChanged<Place>? onPlaceTap;
 
+  /// Дополнительные метки (например, ждущие заказы в диспетчерской).
+  final List<Marker> extraMarkers;
+
   /// Карта сама переезжает к этой точке, когда она меняется.
   final LatLng? follow;
   final bool interactive;
@@ -54,6 +57,7 @@ class TaxiMap extends StatefulWidget {
     this.me,
     this.places = const [],
     this.onPlaceTap,
+    this.extraMarkers = const [],
     this.follow,
     this.interactive = true,
   });
@@ -167,6 +171,7 @@ class _TaxiMapState extends State<TaxiMap> {
                 ),
               if (widget.car != null)
                 Marker(point: widget.car!, width: 48, height: 48, child: const _CarMarker()),
+              ...widget.extraMarkers,
             ]),
           ],
         )),

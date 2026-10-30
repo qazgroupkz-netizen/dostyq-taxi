@@ -774,14 +774,22 @@ class _SeekPanelState extends State<_SeekPanel>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat();
+    // Раз в 10 с перепроверяем, не пора ли сказать «машин нет, заказ у менеджера».
+    _tick = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) setState(() {});
+    });
   }
   @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
+  void dispose() { _ctrl.dispose(); _tick?.cancel(); super.dispose(); }
+  Timer? _tick;
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final declined = state.activeOrder?.declinedBy.isNotEmpty ?? false;
+    final since = state.stateEnteredAt;
+    final noCars = since != null &&
+        DateTime.now().difference(since).inMinutes >= state.settings.showAllMinutes;
     return Column(
       key: const ValueKey('seek'),
       mainAxisSize: MainAxisSize.min,
@@ -824,9 +832,11 @@ class _SeekPanelState extends State<_SeekPanel>
                           fontSize: 22, fontWeight: FontWeight.w800,
                         )),
                     const SizedBox(height: 3),
-                    Text(declined
-                            ? 'Водитель отказался. Ищем другого'
-                            : 'Предлагаем заказ ближайшему водителю',
+                    Text(noCars
+                            ? 'Свободных машин пока нет. Заказ передан менеджеру — он подберёт машину'
+                            : declined
+                                ? 'Водитель отказался. Ищем другого'
+                                : 'Предлагаем заказ ближайшему водителю',
                         style: TextStyle(color: context.muted, fontSize: 14)),
                   ],
                 ),

@@ -464,6 +464,7 @@ class AppState extends ChangeNotifier {
         tariff: tariff.name,
         price: tariffPriceInt,
         payment: paymentMethod,
+        clientPhone: FirebaseAuth.instance.currentUser?.phoneNumber ?? '',
       );
     } catch (_) {
       setClientState(ClientState.home);
@@ -576,14 +577,34 @@ class AppState extends ChangeNotifier {
         notifyListeners();
       });
       _startGps();
-      if (uid != null) orders.setDriverOnline(uid!, true, regionId);
+      if (uid != null) {
+        orders.setDriverOnline(uid!, true, regionId);
+        _assignedSub?.cancel();
+        _assignedSub = orders.watchAssigned(uid!).listen(_onAssigned, onError: (_) {});
+      }
     } else if (!listen && _searchSub != null) {
       _searchSub!.cancel();
       _searchSub = null;
       _searching = [];
+      _assignedSub?.cancel();
+      _assignedSub = null;
       _gpsSub?.cancel();
       _gpsSub = null;
       if (uid != null) orders.setDriverOnline(uid!, false, regionId);
+    }
+  }
+
+  StreamSubscription<List<TaxiOrder>>? _assignedSub;
+
+  /// Менеджер назначил заказ (или после перезагрузки у водителя уже есть поездка) — показываем её.
+  void _onAssigned(List<TaxiOrder> list) {
+    if (driverOrder != null) return;
+    for (final o in list) {
+      if (o.status == 'accepted' || o.status == 'arrived' || o.status == 'riding') {
+        if (o.status == 'accepted') playAlert();
+        _followDriverOrder(o);
+        return;
+      }
     }
   }
 
@@ -703,6 +724,10 @@ class AppState extends ChangeNotifier {
       skipOffer(o.id);
       return;
     }
+    _followDriverOrder(o);
+  }
+
+  void _followDriverOrder(TaxiOrder o) {
     driverOrder = o;
     notifyListeners();
     _driverOrderSub?.cancel();
@@ -753,6 +778,7 @@ class AppState extends ChangeNotifier {
     _placesSub?.cancel();
     _regionsSub?.cancel();
     _myDriverSub?.cancel();
+    _assignedSub?.cancel();
     super.dispose();
   }
 

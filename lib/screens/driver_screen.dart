@@ -933,6 +933,16 @@ class _ActiveRideCard extends StatelessWidget {
             '${order.payment == 'kaspi' ? 'Kaspi' : 'Наличные'}',
             style: const TextStyle(color: Color(0xFFA3ABB6), fontSize: 14),
           ),
+          if (order.clientPhone.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            SelectableText(
+              'Телефон клиента: ${order.clientPhone}'
+              '${order.createdBy == 'manager' ? ' · заказ по звонку' : ''}',
+              style: const TextStyle(
+                color: Color(0xFF7FDCC4), fontSize: 15, fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
