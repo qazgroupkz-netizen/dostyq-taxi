@@ -183,6 +183,22 @@ class _DriverCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
+          if (d.ipUntil != null || d.elicenseUntil != null)
+            Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFD97A00).withOpacity(.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                [
+                  if (d.ipUntil != null) 'без ИП · оформит до ${_date(d.ipUntil)}',
+                  if (d.elicenseUntil != null) 'без E-license · до ${_date(d.elicenseUntil)}',
+                ].join('   '),
+                style: const TextStyle(color: Color(0xFFB36200), fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ),
           if (d.approval == Approval.pending)
             Text('Подана: ${_date(d.submittedAt)}', style: TextStyle(color: context.muted, fontSize: 13)),
           if (d.approval == Approval.rejected && d.rejectReason != null)
@@ -314,7 +330,15 @@ class _DocsDialog extends StatelessWidget {
                       style: TextStyle(color: context.ink, fontSize: 15, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 6),
                   if (docs[e.key] == null)
-                    Text('Не загружено', style: TextStyle(color: context.danger))
+                    Text(
+                      switch (e.key) {
+                        'ip' when driver.ipUntil != null => 'Ещё нет · оформит до ${_date(driver.ipUntil)}',
+                        'elicense' when driver.elicenseUntil != null =>
+                          'Ещё нет · оформит до ${_date(driver.elicenseUntil)}',
+                        _ => 'Не загружено',
+                      },
+                      style: TextStyle(color: context.danger),
+                    )
                   else
                     GestureDetector(
                       onTap: () => showDialog<void>(

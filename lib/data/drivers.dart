@@ -9,13 +9,21 @@ Approval _approvalOf(String? s) => Approval.values
     .firstWhere((a) => a.name == s, orElse: () => Approval.none);
 
 /// Документы, без которых водителя не одобряют.
-const driverDocKinds = <String, String>{
-  'ip': 'ИП или платформенная занятость',
-  'elicense': 'Уведомление E-license (такси)',
-  'license': 'Водительские права',
-  'techpass': 'Техпаспорт',
+const requiredDocKinds = <String, String>{
+  'license_front': 'Права · лицевая сторона',
+  'license_back': 'Права · оборотная сторона',
+  'techpass_front': 'Техпаспорт · лицевая сторона',
+  'techpass_back': 'Техпаспорт · оборотная сторона',
   'car': 'Фото машины',
 };
+
+/// Можно отправить позже: водитель указывает, до какого числа оформит.
+const laterDocKinds = <String, String>{
+  'ip': 'ИП или платформенная занятость',
+  'elicense': 'Уведомление E-license (такси)',
+};
+
+const driverDocKinds = {...requiredDocKinds, ...laterDocKinds};
 
 class DriverProfile {
   final String uid;
@@ -30,6 +38,10 @@ class DriverProfile {
   final DateTime? subscriptionUntil;
   final DateTime? submittedAt;
 
+  /// «Оформлю до»: ИП и уведомление E-license, если их ещё нет.
+  final DateTime? ipUntil;
+  final DateTime? elicenseUntil;
+
   const DriverProfile({
     required this.uid,
     this.name = '',
@@ -42,6 +54,8 @@ class DriverProfile {
     this.rejectReason,
     this.subscriptionUntil,
     this.submittedAt,
+    this.ipUntil,
+    this.elicenseUntil,
   });
 
   String get car => [carColor, carModel].where((s) => s.isNotEmpty).join(' ');
@@ -73,6 +87,8 @@ class DriverProfile {
         rejectReason: m['rejectReason'] as String?,
         subscriptionUntil: (m['subscriptionUntil'] as Timestamp?)?.toDate(),
         submittedAt: (m['submittedAt'] as Timestamp?)?.toDate(),
+        ipUntil: (m['ipUntil'] as Timestamp?)?.toDate(),
+        elicenseUntil: (m['elicenseUntil'] as Timestamp?)?.toDate(),
       );
 }
 
@@ -91,6 +107,8 @@ abstract class DriverRepository {
     required String carColor,
     required String plate,
     required String region,
+    DateTime? ipUntil,
+    DateTime? elicenseUntil,
   });
 
   // ─── Админ ────────────────────────────────────────────────────────────
@@ -139,6 +157,8 @@ class FirestoreDriverRepository implements DriverRepository {
     required String carColor,
     required String plate,
     required String region,
+    DateTime? ipUntil,
+    DateTime? elicenseUntil,
   }) =>
       _drivers.doc(uid).set({
         'name': name,
@@ -147,6 +167,8 @@ class FirestoreDriverRepository implements DriverRepository {
         'carColor': carColor,
         'plate': plate,
         'region': region,
+        'ipUntil': ipUntil == null ? FieldValue.delete() : Timestamp.fromDate(ipUntil),
+        'elicenseUntil': elicenseUntil == null ? FieldValue.delete() : Timestamp.fromDate(elicenseUntil),
         'approval': Approval.pending.name,
         'rejectReason': FieldValue.delete(),
         'consentAt': FieldValue.serverTimestamp(),

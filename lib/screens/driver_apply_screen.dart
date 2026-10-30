@@ -7,7 +7,10 @@ import '../data/drivers.dart';
 import '../state.dart';
 import '../theme.dart';
 
-/// Анкета водителя: статус проверки и форма с документами.
+String _date(DateTime d) =>
+    '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+
+/// Анкета водителя по шагам: документы → машина → ИП и E-license.
 class DriverApplyScreen extends StatefulWidget {
   const DriverApplyScreen({super.key});
   @override
@@ -21,6 +24,10 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
   final _plate = TextEditingController();
   final _photos = <String, Uint8List>{};
   final _uploading = <String>{};
+
+  int _step = 0;
+  DateTime? _ipUntil;
+  DateTime? _elicenseUntil;
   bool _consent = false;
   bool _offer = false;
   bool _sending = false;
@@ -59,15 +66,38 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
     _model.text = p?.carModel ?? '';
     _color.text = p?.carColor ?? '';
     _plate.text = p?.plate ?? '';
+    _ipUntil = p?.ipUntil;
+    _elicenseUntil = p?.elicenseUntil;
   }
 
   Future<void> _pick(String kind) async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Сфотографировать'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Выбрать из галереи'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
     final state = context.read<AppState>();
     final uid = state.uid;
     if (uid == null) return;
     // Сжимаем на устройстве: в базе одна запись — не больше 1 МБ.
     final file = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
+      source: source,
       maxWidth: 1200, maxHeight: 1200, imageQuality: 60,
     );
     if (file == null) return;
@@ -90,26 +120,44 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
     }
   }
 
+  Future<void> _pickLater(String kind) async {
+    final now = DateTime.now();
+    final d = await showDatePicker(
+      context: context,
+      initialDate: now.add(const Duration(days: 14)),
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 90)),
+      helpText: 'До какого числа оформите?',
+    );
+    if (d == null) return;
+    setState(() {
+      if (kind == 'ip') {
+        _ipUntil = d;
+      } else {
+        _elicenseUntil = d;
+      }
+    });
+  }
+
+  bool get _docsDone => const ['license_front', 'license_back', 'techpass_front', 'techpass_back']
+      .every(_photos.containsKey);
+
+  bool get _carDone =>
+      _name.text.trim().isNotEmpty &&
+      _model.text.trim().isNotEmpty &&
+      _color.text.trim().isNotEmpty &&
+      _plate.text.trim().isNotEmpty &&
+      _photos.containsKey('car');
+
+  bool _laterOk(String kind) =>
+      _photos.containsKey(kind) || (kind == 'ip' ? _ipUntil : _elicenseUntil) != null;
+
+  bool get _legalDone => _laterOk('ip') && _laterOk('elicense') && _consent && _offer;
+
   Future<void> _submit() async {
     final state = context.read<AppState>();
     final uid = state.uid;
     if (uid == null) return;
-    final missing = driverDocKinds.keys.where((k) => !_photos.containsKey(k)).toList();
-    if (_name.text.trim().isEmpty ||
-        _model.text.trim().isEmpty ||
-        _color.text.trim().isEmpty ||
-        _plate.text.trim().isEmpty) {
-      setState(() => _error = 'Заполните имя, марку, цвет и госномер машины');
-      return;
-    }
-    if (missing.isNotEmpty) {
-      setState(() => _error = 'Добавьте фото: ${missing.map((k) => driverDocKinds[k]).join(', ')}');
-      return;
-    }
-    if (!_consent || !_offer) {
-      setState(() => _error = 'Нужно согласие на обработку данных и принятие оферты');
-      return;
-    }
     setState(() {
       _sending = true;
       _error = null;
@@ -123,8 +171,15 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
         carColor: _color.text.trim(),
         plate: _plate.text.trim().toUpperCase(),
         region: state.regionId,
+        ipUntil: _photos.containsKey('ip') ? null : _ipUntil,
+        elicenseUntil: _photos.containsKey('elicense') ? null : _elicenseUntil,
       );
-      if (mounted) setState(() => _editing = false);
+      if (mounted) {
+        setState(() {
+          _editing = false;
+          _step = 0;
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => _error = 'Не удалось отправить: $e');
     } finally {
@@ -149,128 +204,357 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
       });
     }
 
-    final showForm = _editing ||
-        approval == Approval.none ||
-        approval == Approval.rejected;
+    final showForm = _editing || approval == Approval.none || approval == Approval.rejected;
+
+    final (Widget body, String cta, bool ready, VoidCallback next) = switch (_step) {
+      0 => (_docsStep(context), 'Продолжить', _docsDone, () => setState(() => _step = 1)),
+      1 => (_carStep(context), 'Продолжить', _carDone, () => setState(() => _step = 2)),
+      _ => (_legalStep(context), _sending ? 'Отправляем…' : 'Отправить на проверку',
+          _legalDone && !_sending, _submit),
+    };
 
     return Scaffold(
       backgroundColor: context.bg,
-      appBar: AppBar(
-        backgroundColor: context.bg,
-        title: const Text('Стать водителем'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-        children: [
-          if (approval == Approval.pending && !_editing)
-            _StatusCard(
-              icon: Icons.hourglass_top_rounded,
-              color: const Color(0xFFD97A00),
-              title: 'Анкета на проверке',
-              text: 'Админ проверит документы и машину. Обычно это занимает до одного дня. '
-                  'Когда одобрят, здесь откроется режим водителя.',
-              action: TextButton(
-                onPressed: () => setState(() => _editing = true),
-                child: const Text('Изменить анкету'),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 16, 0),
+              child: Row(
+                children: [
+                  if (showForm && _step > 0)
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded),
+                      onPressed: () => setState(() => _step--),
+                    ),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.person_rounded, size: 18),
+                    label: const Text('Перейти в режим пассажира'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: context.ink,
+                      backgroundColor: context.surface,
+                      shape: const StadiumBorder(),
+                    ),
+                  ),
+                ],
               ),
             ),
-          if (approval == Approval.rejected)
-            _StatusCard(
-              icon: Icons.error_outline_rounded,
-              color: context.danger,
-              title: 'Анкета отклонена',
-              text: 'Причина: ${p?.rejectReason ?? 'не указана'}. Исправьте и отправьте снова.',
-            ),
-          if (approval == Approval.blocked)
-            _StatusCard(
-              icon: Icons.block_rounded,
-              color: context.danger,
-              title: 'Аккаунт водителя заблокирован',
-              text: 'Свяжитесь с поддержкой DOSTYQ TAXI.',
-            ),
-          if (showForm) ...[
-            Text('Подключение к DOSTYQ TAXI',
-                style: TextStyle(color: context.ink, fontSize: 24, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 6),
-            Text(
-              'Нужны: ИП или платформенная занятость, уведомление о деятельности такси '
-              'на E-license, права, техпаспорт и фото машины. '
-              'Первые 3 месяца подписка бесплатная.',
-              style: TextStyle(color: context.muted, fontSize: 14.5, height: 1.45),
-            ),
-            const SizedBox(height: 18),
-            _field(context, _name, 'Имя и фамилия'),
-            _field(context, _model, 'Марка и модель, например: Toyota Camry'),
-            _field(context, _color, 'Цвет, например: белая'),
-            _field(context, _plate, 'Госномер, например: 045 AKZ 18'),
-            const SizedBox(height: 8),
-            Text('ДОКУМЕНТЫ',
-                style: TextStyle(
-                  color: context.taxi, fontSize: 12, fontWeight: FontWeight.w700,
-                  letterSpacing: .08 * 12,
-                )),
-            const SizedBox(height: 8),
-            for (final e in driverDocKinds.entries)
-              _DocTile(
-                title: e.value,
-                bytes: _photos[e.key],
-                busy: _uploading.contains(e.key),
-                onTap: () => _pick(e.key),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                children: [
+                  if (approval == Approval.pending && !_editing)
+                    _StatusCard(
+                      icon: Icons.hourglass_top_rounded,
+                      color: const Color(0xFFD97A00),
+                      title: 'Анкета на проверке',
+                      text: 'Админ проверит документы и машину. Обычно это занимает до одного дня. '
+                          'Когда одобрят, здесь откроется режим водителя.',
+                      action: TextButton(
+                        onPressed: () => setState(() {
+                          _editing = true;
+                          _step = 0;
+                        }),
+                        child: const Text('Изменить анкету'),
+                      ),
+                    ),
+                  if (approval == Approval.rejected)
+                    _StatusCard(
+                      icon: Icons.error_outline_rounded,
+                      color: context.danger,
+                      title: 'Анкета отклонена',
+                      text: 'Причина: ${p?.rejectReason ?? 'не указана'}. Исправьте и отправьте снова.',
+                    ),
+                  if (approval == Approval.blocked)
+                    _StatusCard(
+                      icon: Icons.block_rounded,
+                      color: context.danger,
+                      title: 'Аккаунт водителя заблокирован',
+                      text: 'Свяжитесь с поддержкой DOSTYQ TAXI.',
+                    ),
+                  if (showForm) body,
+                  if (showForm && _error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Text(_error!, style: TextStyle(color: context.danger, fontSize: 14)),
+                    ),
+                ],
               ),
-            const SizedBox(height: 8),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              value: _consent,
-              onChanged: (v) => setState(() => _consent = v ?? false),
-              title: const Text('Согласен на сбор и обработку персональных данных'),
             ),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              value: _offer,
-              onChanged: (v) => setState(() => _offer = v ?? false),
-              title: const Text('Принимаю условия публичной оферты для водителей'),
-            ),
-            if (_error != null)
+            if (showForm)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(_error!, style: TextStyle(color: context.danger, fontSize: 14)),
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 58,
+                  child: FilledButton(
+                    onPressed: ready && _uploading.isEmpty ? next : null,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: context.taxi,
+                      disabledBackgroundColor: context.surface,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                    ),
+                    child: Text(cta, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                  ),
+                ),
               ),
-            const SizedBox(height: 8),
-            FilledButton(
-              onPressed: _sending || _uploading.isNotEmpty ? null : _submit,
-              style: FilledButton.styleFrom(
-                backgroundColor: context.taxi,
-                minimumSize: const Size.fromHeight(56),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _title(BuildContext context, String title, String sub) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: TextStyle(
+                color: context.ink, fontSize: 30, fontWeight: FontWeight.w800,
+                letterSpacing: -.5, height: 1.15,
+              )),
+          const SizedBox(height: 8),
+          Text(sub,
+              style: TextStyle(
+                color: context.muted, fontSize: 17, fontWeight: FontWeight.w600, height: 1.35,
+              )),
+        ],
+      );
+
+  Widget _counter(BuildContext context, int done, int total) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('$done из $total фото',
+                style: TextStyle(color: context.muted, fontSize: 15, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: total == 0 ? 0 : done / total,
+                minHeight: 4,
+                backgroundColor: context.surface,
+                color: context.taxi,
               ),
-              child: Text(_sending ? 'Отправляем…' : 'Отправить на проверку',
-                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
             ),
           ],
+        ),
+      );
+
+  Widget _pair(BuildContext context, String title, String front, String back) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: TextStyle(color: context.ink, fontSize: 18, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: _tile(context, front, 'Лицевая сторона')),
+              const SizedBox(width: 14),
+              Expanded(child: _tile(context, back, 'Оборотная сторона')),
+            ],
+          ),
+          const SizedBox(height: 20),
+        ],
+      );
+
+  Widget _tile(BuildContext context, String kind, String label) {
+    final bytes = _photos[kind];
+    final busy = _uploading.contains(kind);
+    return GestureDetector(
+      onTap: busy ? null : () => _pick(kind),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AspectRatio(
+            aspectRatio: 1.6,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: context.surface,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: busy
+                    ? const Center(child: CircularProgressIndicator(strokeWidth: 2.5))
+                    : bytes != null
+                        ? Image.memory(bytes, fit: BoxFit.cover, width: double.infinity)
+                        : CustomPaint(
+                            painter: _DashedRect(color: context.muted),
+                            child: Center(
+                              child: Icon(Icons.photo_camera_rounded, color: context.ink, size: 30),
+                            ),
+                          ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(label,
+              style: TextStyle(color: context.ink, fontSize: 16, fontWeight: FontWeight.w700)),
+          Text(bytes != null ? 'Готово · заменить' : 'Сфотографировать',
+              style: TextStyle(
+                color: bytes != null ? context.taxi : context.muted,
+                fontSize: 14.5, fontWeight: FontWeight.w600,
+              )),
         ],
       ),
     );
   }
 
-  Widget _field(BuildContext context, TextEditingController c, String label) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
+  Widget _docsStep(BuildContext context) {
+    const kinds = ['license_front', 'license_back', 'techpass_front', 'techpass_back'];
+    final done = kinds.where(_photos.containsKey).length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _title(context, 'Сфотографируйте документы',
+            'Снимите водительское удостоверение и свидетельство о регистрации ТС '
+            '(техпаспорт) с обеих сторон. Админ проверит их.'),
+        _counter(context, done, kinds.length),
+        _pair(context, 'Водительское удостоверение', 'license_front', 'license_back'),
+        _pair(context, 'Свидетельство о регистрации (техпаспорт)', 'techpass_front', 'techpass_back'),
+      ],
+    );
+  }
+
+  Widget _input(BuildContext context, TextEditingController c, String label,
+          {TextCapitalization caps = TextCapitalization.sentences}) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 12),
         child: TextField(
           controller: c,
-          textCapitalization: TextCapitalization.sentences,
-          style: TextStyle(color: context.ink, fontSize: 16),
+          textCapitalization: caps,
+          onChanged: (_) => setState(() {}),
+          style: TextStyle(color: context.ink, fontSize: 17),
           decoration: InputDecoration(
             labelText: label,
             filled: true,
-            fillColor: context.paper,
+            fillColor: context.surface,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: context.lineC),
+              borderSide: BorderSide.none,
             ),
           ),
         ),
       );
+
+  Widget _carStep(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _title(context, 'Машина', 'Эти данные увидит клиент, когда вы примете заказ.'),
+        const SizedBox(height: 20),
+        _input(context, _name, 'Имя и фамилия', caps: TextCapitalization.words),
+        _input(context, _model, 'Марка и модель, например: Toyota Camry'),
+        _input(context, _color, 'Цвет, например: белая'),
+        _input(context, _plate, 'Госномер, например: 045 AKZ 18',
+            caps: TextCapitalization.characters),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: 220,
+          child: _tile(context, 'car', 'Фото машины спереди'),
+        ),
+      ],
+    );
+  }
+
+  Widget _laterBlock(BuildContext context, String kind, String title, String hint) {
+    final until = kind == 'ip' ? _ipUntil : _elicenseUntil;
+    final has = _photos.containsKey(kind);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.paper,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: has || until != null ? context.jLine : context.lineC),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: TextStyle(color: context.ink, fontSize: 17, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(hint, style: TextStyle(color: context.muted, fontSize: 13.5, height: 1.4)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              SizedBox(width: 150, child: _tile(context, kind, 'Документ')),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('или', style: TextStyle(color: context.muted, fontSize: 14)),
+                    const SizedBox(height: 6),
+                    OutlinedButton(
+                      onPressed: has ? null : () => _pickLater(kind),
+                      child: Text(until == null ? 'Ещё нет — оформлю позже' : 'Оформлю до ${_date(until)}'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _legalStep(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _title(context, 'ИП и разрешение',
+            'Сфотографируйте документы или укажите, до какого числа оформите их. '
+            'Первые 3 месяца подписка бесплатная.'),
+        const SizedBox(height: 20),
+        _laterBlock(context, 'ip', 'ИП или платформенная занятость',
+            'Регистрация ИП — на egov.kz или в приложении банка, если есть ЭЦП.'),
+        _laterBlock(context, 'elicense', 'Уведомление на E-license',
+            'Уведомление о начале деятельности такси подаётся на elicense.kz, по каждой машине.'),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          value: _consent,
+          onChanged: (v) => setState(() => _consent = v ?? false),
+          title: const Text('Согласен на сбор и обработку персональных данных'),
+        ),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          value: _offer,
+          onChanged: (v) => setState(() => _offer = v ?? false),
+          title: const Text('Принимаю условия публичной оферты для водителей'),
+        ),
+      ],
+    );
+  }
+}
+
+class _DashedRect extends CustomPainter {
+  final Color color;
+  _DashedRect({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6;
+    final path = Path()
+      ..addRRect(RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(10)));
+    for (final m in path.computeMetrics()) {
+      for (double d = 0; d < m.length; d += 12) {
+        canvas.drawPath(m.extractPath(d, d + 7), p);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedRect old) => old.color != color;
 }
 
 class _StatusCard extends StatelessWidget {
@@ -311,66 +595,6 @@ class _StatusCard extends StatelessWidget {
           Text(text, style: TextStyle(color: context.ink2, fontSize: 14.5, height: 1.45)),
           if (action != null) action!,
         ],
-      ),
-    );
-  }
-}
-
-class _DocTile extends StatelessWidget {
-  final String title;
-  final Uint8List? bytes;
-  final bool busy;
-  final VoidCallback onTap;
-  const _DocTile({required this.title, required this.bytes, required this.busy, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final has = bytes != null;
-    return InkWell(
-      onTap: busy ? null : onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: context.paper,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: has ? context.jLine : context.lineC),
-        ),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                width: 64, height: 48,
-                color: context.surface,
-                child: busy
-                    ? const Center(child: SizedBox(
-                        width: 20, height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2)))
-                    : has
-                        ? Image.memory(bytes!, fit: BoxFit.cover)
-                        : Icon(Icons.add_a_photo_outlined, color: context.muted),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: TextStyle(color: context.ink, fontSize: 15, fontWeight: FontWeight.w600)),
-                  Text(has ? 'Загружено · нажмите, чтобы заменить' : 'Нажмите, чтобы добавить фото',
-                      style: TextStyle(
-                        color: has ? context.taxi : context.muted, fontSize: 12.5,
-                      )),
-                ],
-              ),
-            ),
-            Icon(has ? Icons.check_circle_rounded : Icons.chevron_right_rounded,
-                color: has ? context.taxi : context.muted),
-          ],
-        ),
       ),
     );
   }
