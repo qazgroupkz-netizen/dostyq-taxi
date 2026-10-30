@@ -461,13 +461,63 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Почему не удалось получить координаты водителя; null — всё в порядке.
+  String? gpsError;
+  bool gpsRequesting = false;
+
+  /// Машину поставили на карте руками (тест) — GPS её не сдвигает до «Повторить».
+  bool manualLocation = false;
+
   void _startGps() {
     _gpsSub?.cancel();
-    _gpsSub = LocationService.watch().listen(_onGps);
+    _gpsSub = LocationService.watch().listen(_onGps, onError: (Object e) {
+      if (myLocation == null) gpsError = LocationService.describe(e);
+      notifyListeners();
+    });
+    gpsRequesting = true;
+    notifyListeners();
     // Первая точка сразу, не дожидаясь движения.
     LocationService.current().then((p) {
-      if (p != null && _gpsSub != null) _onGps(p);
+      gpsRequesting = false;
+      if (p != null) {
+        if (_gpsSub != null) _onGps(p);
+      } else if (myLocation == null) {
+        gpsError = LocationService.lastError ?? 'Местоположение не получено.';
+      }
+      notifyListeners();
     });
+  }
+
+  void retryGps() {
+    manualLocation = false;
+    gpsError = null;
+    if (_searchSub != null) {
+      _startGps();
+    } else {
+      gpsRequesting = true;
+      notifyListeners();
+      LocationService.current().then((p) {
+        gpsRequesting = false;
+        if (p != null) {
+          myLocation = p;
+        } else {
+          gpsError = LocationService.lastError ?? 'Местоположение не получено.';
+        }
+        notifyListeners();
+      });
+    }
+  }
+
+  void setManualDriverLocation(LatLng p) {
+    _simTimer?.cancel();
+    _simTimer = null;
+    manualLocation = true;
+    myLocation = p;
+    gpsError = null;
+    if (uid != null) {
+      orders.updateDriverLocation(uid!, (lat: p.latitude, lng: p.longitude));
+    }
+    notifyListeners();
   }
 
   // ─── Демо-поездка: водитель «едет» к клиенту без настоящего GPS ─────────
@@ -501,7 +551,8 @@ class AppState extends ChangeNotifier {
   }
 
   void _onGps(LatLng p) {
-    if (simulating) return;
+    if (simulating || manualLocation) return;
+    gpsError = null;
     myLocation = p;
     notifyListeners();
     final now = DateTime.now();

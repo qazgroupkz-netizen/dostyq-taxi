@@ -5,7 +5,10 @@ import '../data/orders.dart';
 import '../services/sound.dart';
 import '../state.dart';
 import '../theme.dart';
+import 'package:flutter_map/flutter_map.dart' show MapController;
 import 'package:latlong2/latlong.dart' show LatLng;
+import '../config.dart';
+import '../data/places.dart';
 import '../widgets/taxi_map.dart';
 
 // ════════════════════════════════════════════════════════════════
@@ -139,6 +142,9 @@ class _DriverBody extends StatelessWidget {
                         if (state.isOnline && state.myLocation == null) ...[
                           const _NoGpsWarning(),
                           const SizedBox(height: 12),
+                        ] else if (kTestMode) ...[
+                          const _ManualPlaceLink(),
+                          const SizedBox(height: 12),
                         ],
 
                         // Предупреждение о подписке
@@ -192,6 +198,7 @@ class _NoGpsWarning extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(14),
@@ -200,15 +207,199 @@ class _NoGpsWarning extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0xFF7A2A2E)),
       ),
-      child: const Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.location_off_rounded, color: Color(0xFFFF8A8E), size: 22),
-          SizedBox(width: 10),
+          const Row(
+            children: [
+              Icon(Icons.location_off_rounded, color: Color(0xFFFF8A8E), size: 22),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Местоположение не определено — клиенты не увидят вашу машину.',
+                  style: TextStyle(
+                    color: Color(0xFFF2C9CB),
+                    fontSize: 14, fontWeight: FontWeight.w700, height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            state.gpsRequesting
+                ? 'Запрашиваем местоположение…'
+                : 'Причина: ${state.gpsError ?? 'ответа от устройства ещё нет.'}',
+            style: const TextStyle(color: Color(0xFFE8A9AC), fontSize: 13, height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          _DarkButton(
+            label: state.gpsRequesting ? 'Ждём ответа…' : 'Повторить',
+            icon: Icons.refresh_rounded,
+            onTap: state.gpsRequesting ? null : state.retryGps,
+          ),
+          if (kTestMode) ...[
+            const SizedBox(height: 8),
+            _DarkButton(
+              label: 'Поставить машину на карте вручную',
+              icon: Icons.edit_location_alt_outlined,
+              onTap: () => _openManualPlace(context),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ManualPlaceLink extends StatelessWidget {
+  const _ManualPlaceLink();
+
+  @override
+  Widget build(BuildContext context) {
+    final manual = context.select<AppState, bool>((s) => s.manualLocation);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
           Expanded(
-            child: Text(
-              'Местоположение не определено — клиенты не увидят вашу машину. '
-              'Разрешите геолокацию в настройках браузера или телефона.',
-              style: TextStyle(color: Color(0xFFF2C9CB), fontSize: 13.5, height: 1.4),
+            child: _DarkButton(
+              label: manual ? 'Тест: машина поставлена вручную — сдвинуть'
+                  : 'Тест: поставить машину вручную',
+              icon: Icons.edit_location_alt_outlined,
+              onTap: () => _openManualPlace(context),
+            ),
+          ),
+          if (manual) ...[
+            const SizedBox(width: 8),
+            _DarkButton(
+              label: 'GPS',
+              icon: Icons.gps_fixed_rounded,
+              onTap: context.read<AppState>().retryGps,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DarkButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback? onTap;
+  const _DarkButton({required this.label, required this.icon, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 48),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1F232A),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFF2A2F37)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: const Color(0xFF7FDCC4), size: 20),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(label,
+                  style: TextStyle(
+                    color: onTap == null ? const Color(0xFF5E6571) : const Color(0xFF7FDCC4),
+                    fontSize: 14.5, fontWeight: FontWeight.w600,
+                  )),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+void _openManualPlace(BuildContext context) {
+  Navigator.of(context).push(MaterialPageRoute(
+    builder: (_) => const _ManualPlaceScreen(),
+    fullscreenDialog: true,
+  ));
+}
+
+class _ManualPlaceScreen extends StatefulWidget {
+  const _ManualPlaceScreen();
+  @override
+  State<_ManualPlaceScreen> createState() => _ManualPlaceScreenState();
+}
+
+class _ManualPlaceScreenState extends State<_ManualPlaceScreen> {
+  final _map = MapController();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.read<AppState>();
+    final top = MediaQuery.of(context).padding.top;
+    final bottom = MediaQuery.of(context).padding.bottom;
+    return Scaffold(
+      body: Stack(
+        children: [
+          TaxiMap(
+            controller: _map,
+            centerPin: true,
+            pinLabel: 'Машина здесь',
+            initialCenter: state.myLocation ?? dostykCenter,
+            places: dostykPlaces,
+          ),
+          Positioned(
+            top: top + 12, left: 12,
+            child: Material(
+              color: Colors.white,
+              shape: const CircleBorder(),
+              elevation: 3,
+              child: IconButton(
+                icon: const Icon(Icons.close_rounded, color: Color(0xFF14171F)),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 16, right: 16, bottom: bottom + 16,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Text(
+                    'Тест: двигайте карту, чтобы булавка стояла там, где машина',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Color(0xFF14171F), fontSize: 14),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF0E7C66),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                    ),
+                    onPressed: () {
+                      state.setManualDriverLocation(_map.camera.center);
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text('Поставить машину здесь',
+                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
