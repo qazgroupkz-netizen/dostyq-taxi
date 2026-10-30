@@ -874,6 +874,23 @@ class AppState extends ChangeNotifier {
   Region? get intercityTo => regions.where((r) => r.id != regionId).firstOrNull;
   RoutePrice get intercityPrice => settings.routeTo(intercityTo?.id ?? '');
 
+  /// Одно направление — его название; несколько — «Межгород».
+  String get intercityName {
+    final n = regions.where((r) => r.id != regionId).length;
+    return n == 1 ? intercityTo!.name : 'Межгород';
+  }
+
+  /// Самые низкие цены среди направлений — для «от …» на карточке.
+  bool get intercityMany => regions.where((r) => r.id != regionId).length > 1;
+  int get intercityMinSeat => regions
+      .where((r) => r.id != regionId)
+      .map((r) => settings.routeTo(r.id).seat)
+      .fold(intercityPrice.seat, (a, b) => a < b ? a : b);
+  int get intercityMinWhole => regions
+      .where((r) => r.id != regionId)
+      .map((r) => settings.routeTo(r.id).whole)
+      .fold(intercityPrice.whole, (a, b) => a < b ? a : b);
+
   int get tariffPriceInt {
     switch (tariff) {
       case Tariff.local:    return localPriceInt;

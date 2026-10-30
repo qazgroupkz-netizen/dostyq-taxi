@@ -73,19 +73,23 @@ class _TripScreenState extends State<TripScreen> {
                 if (others.length > 1)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                    child: Row(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
                       children: [
-                        Text('Куда:', style: TextStyle(color: context.muted)),
-                        const SizedBox(width: 10),
-                        DropdownButton<String>(
-                          value: to,
-                          underline: const SizedBox.shrink(),
-                          items: [
-                            for (final Region r in others)
-                              DropdownMenuItem(value: r.id, child: Text(r.name)),
-                          ],
-                          onChanged: (v) => setState(() => _to = v),
-                        ),
+                        for (final Region r in others)
+                          ChoiceChip(
+                            label: Text(
+                                '${r.name} · ${formatPrice(widget.wholeCarMode ? state.settings.routeTo(r.id).whole : state.settings.routeTo(r.id).seat)}'),
+                            selected: r.id == to,
+                            showCheckmark: false,
+                            selectedColor: context.taxi,
+                            labelStyle: TextStyle(
+                              color: r.id == to ? context.onTaxi : context.ink,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            onSelected: (_) => setState(() => _to = r.id),
+                          ),
                       ],
                     ),
                   ),

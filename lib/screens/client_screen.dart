@@ -639,7 +639,7 @@ class _HomePanel extends StatelessWidget {
     if (state.tariff == Tariff.border) {
       return _CtaButton(
         label: 'Выбрать рейс',
-        sub: '${formatPrice(state.intercityPrice.seat)} / место',
+        sub: '${state.intercityMany ? 'от ' : ''}${formatPrice(state.intercityMinSeat)} / место',
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const TripScreen()),
         ),
@@ -649,7 +649,7 @@ class _HomePanel extends StatelessWidget {
     if (state.tariff == Tariff.whole) {
       return _CtaButton(
         label: 'Выбрать время',
-        sub: formatPrice(state.intercityPrice.whole),
+        sub: '${state.intercityMany ? 'от ' : ''}${formatPrice(state.intercityMinWhole)}',
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
               builder: (_) => const TripScreen(wholeCarMode: true)),
@@ -1779,8 +1779,14 @@ class _TariffCard extends StatelessWidget {
     final s = state.settings;
     var (name, price, note) = switch (tariff) {
       Tariff.local    => ('Посёлок', formatPrice(s.localPrice), '≈ 3 мин'),
-      Tariff.border   => (state.intercityTo?.name ?? 'Межгород', formatPrice(state.intercityPrice.seat), 'за место'),
-      Tariff.whole    => ('Вся машина', formatPrice(state.intercityPrice.whole), state.intercityTo == null ? 'межгород' : '→ ${state.intercityTo!.name}'),
+      Tariff.border   => (
+          state.intercityTo == null ? 'Межгород' : state.intercityName,
+          '${state.intercityMany ? 'от ' : ''}${formatPrice(state.intercityMinSeat)}',
+          'за место'),
+      Tariff.whole    => (
+          'Вся машина',
+          '${state.intercityMany ? 'от ' : ''}${formatPrice(state.intercityMinWhole)}',
+          state.intercityMany || state.intercityTo == null ? 'межгород' : '→ ${state.intercityTo!.name}'),
       Tariff.delivery => ('Доставка', formatPrice(s.deliveryPrice), 'по посёлку'),
       Tariff.cargo    => ('Грузовое', 'Торг', 'цену предложат'),
     };
@@ -1828,16 +1834,22 @@ class _TariffCard extends StatelessWidget {
                     CarSvg(tariff: tariff),
                     const SizedBox(height: 4),
                     Text(name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: context.ink,
                           fontSize: 15, fontWeight: FontWeight.w700,
                         )),
                     const SizedBox(height: 1),
-                    Text(price,
-                        style: TextStyle(
-                          color: context.ink,
-                          fontSize: 16, fontWeight: FontWeight.w800,
-                        )),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(price,
+                          style: TextStyle(
+                            color: context.ink,
+                            fontSize: 16, fontWeight: FontWeight.w800,
+                          )),
+                    ),
                     Text(note,
                         style: TextStyle(
                           color: context.muted, fontSize: 12, fontWeight: FontWeight.w500)),
