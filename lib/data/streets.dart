@@ -76,6 +76,10 @@ List<Street> parseStreets(String text) {
   return out;
 }
 
-/// Номер дома из запроса: «абая 12» → «12», «абая 12а» → «12а».
-String? houseNumber(String query) =>
-    RegExp(r'(\d+\s?[а-яa-z]?)\s*$', caseSensitive: false).firstMatch(query.trim())?.group(1);
+/// Запрос «ул. абая 12а» → улица «абая» и дом «12а» (дома может не быть).
+(String, String?) splitHouse(String query) {
+  final q = query.trim().replaceFirst(RegExp(r'^(ул\.?|улица|көшесі)\s+', caseSensitive: false), '');
+  final m = RegExp(r'[\s,]+(\d+\s?[а-яa-z]?)$', caseSensitive: false).firstMatch(q);
+  if (m == null) return (q, null);
+  return (q.substring(0, m.start).trim(), m.group(1)!.replaceAll(' ', ''));
+}

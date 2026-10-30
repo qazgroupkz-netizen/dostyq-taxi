@@ -8,6 +8,7 @@ import 'data/orders.dart';
 import 'data/places.dart';
 import 'data/regions.dart';
 import 'data/settings.dart';
+import 'data/streets.dart';
 import 'data/trips.dart';
 import 'i18n.dart';
 import 'services/geo_api.dart';
@@ -84,6 +85,9 @@ class AppState extends ChangeNotifier {
     _onlineSub = null;
     _settingsSub?.cancel();
     _settingsSub = null;
+    _streetsSub?.cancel();
+    _streetsSub = null;
+    streets = const [];
     onlineDrivers = [];
     settings = const TariffSettings();
     if (uid == null) return;
@@ -93,6 +97,10 @@ class AppState extends ChangeNotifier {
     }, onError: (_) {});
     _settingsSub = catalog.watchSettings(regionId).listen((s) {
       settings = s;
+      notifyListeners();
+    }, onError: (_) {});
+    _streetsSub = catalog.watchStreets(regionId).listen((list) {
+      streets = list;
       notifyListeners();
     }, onError: (_) {});
   }
@@ -156,6 +164,10 @@ class AppState extends ChangeNotifier {
   /// Места текущего района из базы.
   List<Place> get placesFromDb =>
       allPlacesFromDb.where((p) => p.region == regionId).toList();
+
+  /// Улицы текущего района (для поиска «абая 12»).
+  List<Street> streets = const [];
+  StreamSubscription<List<Street>>? _streetsSub;
 
   List<Place> get places {
     if (allPlacesFromDb.isNotEmpty) return placesFromDb;
@@ -826,6 +838,7 @@ class AppState extends ChangeNotifier {
     _simTimer?.cancel();
     _onlineSub?.cancel();
     _settingsSub?.cancel();
+    _streetsSub?.cancel();
     _placesSub?.cancel();
     _regionsSub?.cancel();
     _myDriverSub?.cancel();

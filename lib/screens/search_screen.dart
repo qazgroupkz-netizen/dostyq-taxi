@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:latlong2/latlong.dart' show Distance;
+import 'package:latlong2/latlong.dart' show Distance, LatLng;
 import 'package:provider/provider.dart';
 import '../data/places.dart';
+import '../data/streets.dart';
 import '../i18n.dart';
+import '../services/geo_api.dart';
 import '../state.dart';
 import '../theme.dart';
 
@@ -19,6 +21,7 @@ class _SearchScreenState extends State<SearchScreen> {
   final _ctrl = TextEditingController();
   late bool _forFrom = widget.forFrom;
   String _q = '';
+  bool _locating = false;
 
   @override
   void initState() {
@@ -41,6 +44,42 @@ class _SearchScreenState extends State<SearchScreen> {
     }
     Navigator.of(context).pop();
   }
+
+  /// Улица из списка: с номером дома ищем дом в OpenStreetMap, иначе — середина улицы.
+  Future<void> _chooseStreet(Place p, String? house) async {
+    final state = context.read<AppState>();
+    final nav = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    LatLng? point = p.approx ? null : p.point;
+    if (house != null) {
+      setState(() => _locating = true);
+      final street = p.synonyms.first;
+      point = await GeoApi.search('$street $house, ${state.region.name}', state.region.center) ?? point;
+      if (!mounted) return;
+      setState(() => _locating = false);
+    }
+    if (point == null) {
+      state.startPick(_forFrom ? 'from' : 'to');
+      nav.pop();
+      messenger.showSnackBar(SnackBar(
+        content: Text(trf('Улицу {s} не нашли на карте. Передвиньте карту к дому.', {'s': p.name})),
+        duration: const Duration(seconds: 6),
+      ));
+      return;
+    }
+    _choose(p.copyWith(name: house == null ? p.name : '${p.name}, $house', point: point));
+  }
+
+  List<Widget> _streetItems(List<Place> list, String? house) => [
+        for (final p in list)
+          _PlaceItem(
+            name: house == null ? p.name : '${p.name}, $house',
+            sub: house == null ? tr('улица') : tr('дом на улице'),
+            icon: Icons.signpost_outlined,
+            iconColor: context.accent,
+            onTap: _locating ? () {} : () => _chooseStreet(p, house),
+          ),
+      ];
 
   void _pickOnMap() {
     context.read<AppState>().startPick(_forFrom ? 'from' : 'to');
@@ -66,6 +105,12 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final results = _q.isEmpty ? state.places : searchPlaces(_q, state.places);
+    final (streetQ, house) = splitHouse(_q);
+    final streetResults = _q.isEmpty || streetQ.isEmpty || state.streets.isEmpty
+        ? const <Place>[]
+        : searchPlaces(streetQ, [
+            for (final s in state.streets) s.toPlace(state.regionId, state.region.center),
+          ]).take(5).toList();
     final dist = Distance();
 
     return Scaffold(
@@ -196,6 +241,9 @@ class _SearchScreenState extends State<SearchScreen> {
                     iconColor: context.accent,
                     onTap: _useGps,
                   ),
+                if (_locating) const LinearProgressIndicator(),
+                // С номером дома сначала улицы, без номера — сначала места.
+                if (house != null) ..._streetItems(streetResults, house),
                 ...results.map((p) => _PlaceItem(
                       name: p.name,
                       sub: p.sub,
@@ -204,7 +252,8 @@ class _SearchScreenState extends State<SearchScreen> {
                       trailing: formatDistance(dist(state.pickup, p.point)),
                       onTap: () => _choose(p),
                     )),
-                if (_q.isNotEmpty && results.isEmpty)
+                if (house == null) ..._streetItems(streetResults, house),
+                if (_q.isNotEmpty && results.isEmpty && streetResults.isEmpty)
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: Text(
@@ -221,6 +270,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 }
+
 
 class _RouteRow extends StatelessWidget {
   final bool isFrom;
