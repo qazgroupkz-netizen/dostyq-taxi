@@ -110,8 +110,9 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
       to: to,
       date: dateKey(DateTime.now().add(Duration(days: day))),
       time: '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
-      seatPrice: state.settings.seatPrice,
-      wholePrice: state.settings.wholeCarPrice,
+      seatPrice: state.settings.routeTo(to).seat,
+      wholePrice: state.settings.routeTo(to).whole,
+      parcelPrice: state.settings.routeTo(to).parcel,
     ));
       messenger.showSnackBar(
         const SnackBar(content: Text('Рейс создан. Клиенты уже видят его.')),
@@ -202,6 +203,10 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
                       ],
                     ),
                     Text('${name(t.from)} → ${name(t.to)}', style: TextStyle(color: context.muted)),
+                    Text(
+                      'Место ${formatPrice(t.seatPrice)} · вся машина ${formatPrice(t.wholePrice)} · посылка ${formatPrice(_parcelPrice(state, t))}',
+                      style: TextStyle(color: context.ink, fontWeight: FontWeight.w700),
+                    ),
                     const SizedBox(height: 10),
                     if (t.whole != null)
                       _row(context, Icons.local_taxi_rounded, 'Вся машина: ${t.whole!.name}', t.whole!.phone)
@@ -219,7 +224,7 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
                       Text('Посылки', style: TextStyle(color: context.ink, fontWeight: FontWeight.w700)),
                       for (final p in t.parcels)
                         _row(context, Icons.inventory_2_outlined,
-                            '${p.what}${p.price > 0 ? ' (${formatPrice(p.price)})' : ''} — от ${p.senderName} ${p.senderPhone}',
+                            '${p.what} (${formatPrice(p.price > 0 ? p.price : _parcelPrice(state, t))}) — от ${p.senderName} ${p.senderPhone}',
                             'получит ${p.toName} ${p.toPhone}'),
                     ],
                   ],
@@ -231,6 +236,10 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
       ),
     );
   }
+
+  // Рейсы, созданные до цены посылки, берут цену направления из тарифов.
+  int _parcelPrice(AppState state, Trip t) =>
+      t.parcelPrice > 0 ? t.parcelPrice : state.settings.routeTo(t.to).parcel;
 
   Widget _row(BuildContext context, IconData icon, String title, String sub) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),

@@ -639,7 +639,7 @@ class _HomePanel extends StatelessWidget {
     if (state.tariff == Tariff.border) {
       return _CtaButton(
         label: 'Выбрать рейс',
-        sub: '${formatPrice(state.settings.seatPrice)} / место',
+        sub: '${formatPrice(state.intercityPrice.seat)} / место',
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const TripScreen()),
         ),
@@ -649,7 +649,7 @@ class _HomePanel extends StatelessWidget {
     if (state.tariff == Tariff.whole) {
       return _CtaButton(
         label: 'Выбрать время',
-        sub: formatPrice(state.settings.wholeCarPrice),
+        sub: formatPrice(state.intercityPrice.whole),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
               builder: (_) => const TripScreen(wholeCarMode: true)),
@@ -1779,8 +1779,8 @@ class _TariffCard extends StatelessWidget {
     final s = state.settings;
     var (name, price, note) = switch (tariff) {
       Tariff.local    => ('Посёлок', formatPrice(s.localPrice), '≈ 3 мин'),
-      Tariff.border   => ('Ушарал', formatPrice(s.seatPrice), 'за место'),
-      Tariff.whole    => ('Вся машина', formatPrice(s.wholeCarPrice), 'до Ушарала'),
+      Tariff.border   => (state.intercityTo?.name ?? 'Межгород', formatPrice(state.intercityPrice.seat), 'за место'),
+      Tariff.whole    => ('Вся машина', formatPrice(state.intercityPrice.whole), state.intercityTo == null ? 'межгород' : '→ ${state.intercityTo!.name}'),
       Tariff.delivery => ('Доставка', formatPrice(s.deliveryPrice), 'по посёлку'),
       Tariff.cargo    => ('Грузовое', 'Торг', 'цену предложат'),
     };

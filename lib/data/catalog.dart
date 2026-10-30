@@ -13,6 +13,7 @@ abstract class CatalogRepository {
 
   Stream<TariffSettings> watchSettings(String regionId);
   Future<void> saveSettings(String regionId, TariffSettings s);
+  Future<void> saveRoutePrice(String from, String to, RoutePrice p);
 
   /// Все места всех районов; пустой список — в базе мест ещё нет.
   Stream<List<Place>> watchPlaces();
@@ -74,6 +75,13 @@ class FirestoreCatalogRepository implements CatalogRepository {
   Future<void> saveSettings(String regionId, TariffSettings s) =>
       _settings.doc(regionId).set({
         ...s.toMap(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+  @override
+  Future<void> saveRoutePrice(String from, String to, RoutePrice p) =>
+      _settings.doc(from).set({
+        'routes': {to: p.toMap()},
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 

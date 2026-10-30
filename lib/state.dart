@@ -870,11 +870,15 @@ class AppState extends ChangeNotifier {
 
   String get tariffPrice => formatPrice(tariffPriceInt);
 
+  /// Главное направление межгорода (первый другой район) и его цены.
+  Region? get intercityTo => regions.where((r) => r.id != regionId).firstOrNull;
+  RoutePrice get intercityPrice => settings.routeTo(intercityTo?.id ?? '');
+
   int get tariffPriceInt {
     switch (tariff) {
       case Tariff.local:    return localPriceInt;
-      case Tariff.border:   return settings.seatPrice;
-      case Tariff.whole:    return settings.wholeCarPrice;
+      case Tariff.border:   return intercityPrice.seat;
+      case Tariff.whole:    return intercityPrice.whole;
       case Tariff.delivery: return settings.deliveryPrice;
       case Tariff.cargo:    return settings.cargoPrice;
     }

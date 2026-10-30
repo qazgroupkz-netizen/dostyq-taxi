@@ -18,11 +18,11 @@ const _priceFields = <_Field>[
   ('farMeters', 'Дальняя поездка — от', 'Длина маршрута по дорогам', 'м'),
   ('farPrice', 'Дальняя поездка', 'Если маршрут длиннее порога выше', '₸'),
   ('kppPrice', 'Таможня · КПП', 'Туда или оттуда', '₸'),
-  ('seatPrice', 'Место до Ушарала', 'За одного пассажира', '₸'),
-  ('wholeCarPrice', 'Вся машина до Ушарала', 'Обычно 4 места', '₸'),
+  ('seatPrice', 'Межгород: место', 'Если у направления нет своей цены', '₸'),
+  ('wholeCarPrice', 'Межгород: вся машина', 'Если у направления нет своей цены', '₸'),
   ('deliveryPrice', 'Доставка по посёлку', 'Без стоимости покупок', '₸'),
   ('cargoPrice', 'Грузовое — ориентир', 'Подсказка водителю при торге', '₸'),
-  ('parcelPrice', 'Посылка попутным рейсом', 'Между районами', '₸'),
+  ('parcelPrice', 'Межгород: посылка', 'Если у направления нет своей цены', '₸'),
 ];
 
 const _ruleFields = <_Field>[
@@ -161,7 +161,42 @@ class _TariffsPageState extends State<TariffsPage> {
           const SizedBox(height: 16),
           cards[1],
         ],
+        const SizedBox(height: 16),
+        _routesCard(context, st),
       ],
+    );
+  }
+
+  Widget _routesCard(BuildContext context, AppState st) {
+    final others = st.allRegions.where((r) => r.id != st.regionId).toList();
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: context.paper,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: context.lineC),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Межгород — цены по направлениям',
+              style: TextStyle(color: context.ink, fontSize: 18, fontWeight: FontWeight.w800)),
+          Text('Из района «${st.region.name}». Цена берётся в момент создания рейса водителем.',
+              style: TextStyle(color: context.muted, fontSize: 12.5)),
+          const SizedBox(height: 8),
+          if (others.isEmpty)
+            Text('Других районов пока нет', style: TextStyle(color: context.muted)),
+          for (final r in others)
+            _RouteRow(
+              key: ValueKey('${st.regionId}>${r.id} ${st.settings.routeTo(r.id).toMap()}'),
+              from: st.regionId,
+              to: r.id,
+              name: r.name,
+              price: st.settings.routeTo(r.id),
+              custom: st.settings.routes.containsKey(r.id),
+            ),
+        ],
+      ),
     );
   }
 
@@ -222,6 +257,117 @@ class _TariffsPageState extends State<TariffsPage> {
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Одно направление: место, вся машина, посылка + «Сохранить».
+class _RouteRow extends StatefulWidget {
+  final String from;
+  final String to;
+  final String name;
+  final RoutePrice price;
+  final bool custom;
+  const _RouteRow({
+    super.key,
+    required this.from,
+    required this.to,
+    required this.name,
+    required this.price,
+    required this.custom,
+  });
+  @override
+  State<_RouteRow> createState() => _RouteRowState();
+}
+
+class _RouteRowState extends State<_RouteRow> {
+  late final _seat = TextEditingController(text: '${widget.price.seat}');
+  late final _whole = TextEditingController(text: '${widget.price.whole}');
+  late final _parcel = TextEditingController(text: '${widget.price.parcel}');
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _seat.dispose();
+    _whole.dispose();
+    _parcel.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final seat = int.tryParse(_seat.text.trim());
+    final whole = int.tryParse(_whole.text.trim());
+    final parcel = int.tryParse(_parcel.text.trim());
+    final messenger = ScaffoldMessenger.of(context);
+    if (seat == null || whole == null || parcel == null) {
+      messenger.showSnackBar(const SnackBar(content: Text('Нужны целые числа')));
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await context.read<AppState>().catalog.saveRoutePrice(
+          widget.from, widget.to, RoutePrice(seat: seat, whole: whole, parcel: parcel));
+      messenger.showSnackBar(SnackBar(content: Text('Цены направления «${widget.name}» сохранены')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Не удалось сохранить: $e')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Widget _field(TextEditingController c, String label) => SizedBox(
+        width: 130,
+        child: TextField(
+          controller: c,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          textAlign: TextAlign.right,
+          style: TextStyle(color: context.ink, fontSize: 16, fontWeight: FontWeight.w700),
+          decoration: InputDecoration(
+            labelText: label,
+            suffixText: '₸',
+            isDense: true,
+            filled: true,
+            fillColor: context.surface,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          SizedBox(
+            width: 200,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('→ ${widget.name}',
+                    style: TextStyle(color: context.ink, fontSize: 15, fontWeight: FontWeight.w700)),
+                Text(widget.custom ? 'своя цена' : 'общая цена района',
+                    style: TextStyle(color: context.muted, fontSize: 12.5)),
+              ],
+            ),
+          ),
+          _field(_seat, 'Место'),
+          _field(_whole, 'Вся машина'),
+          _field(_parcel, 'Посылка'),
+          FilledButton(
+            onPressed: _saving ? null : _save,
+            style: FilledButton.styleFrom(backgroundColor: context.taxi, minimumSize: const Size(110, 48)),
+            child: Text(_saving ? '…' : 'Сохранить'),
+          ),
         ],
       ),
     );

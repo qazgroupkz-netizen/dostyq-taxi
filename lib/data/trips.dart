@@ -56,6 +56,7 @@ class Trip {
   final String time; // ЧЧ:ММ
   final int seatPrice;
   final int wholePrice;
+  final int parcelPrice;
   final String status; // open / cancelled
 
   /// Номер места (1..4) → пассажир.
@@ -76,6 +77,7 @@ class Trip {
     required this.time,
     required this.seatPrice,
     required this.wholePrice,
+    this.parcelPrice = 0,
     this.status = 'open',
     this.seats = const {},
     this.whole,
@@ -162,6 +164,7 @@ class FirestoreTripRepository implements TripRepository {
       time: m['time'] as String? ?? '',
       seatPrice: (m['seatPrice'] as num?)?.toInt() ?? 0,
       wholePrice: (m['wholePrice'] as num?)?.toInt() ?? 0,
+      parcelPrice: (m['parcelPrice'] as num?)?.toInt() ?? 0,
       status: m['status'] as String? ?? 'open',
       seats: seats,
       whole: TripBooking.fromMap(m['whole']),
@@ -204,6 +207,7 @@ class FirestoreTripRepository implements TripRepository {
         'time': t.time,
         'seatPrice': t.seatPrice,
         'wholePrice': t.wholePrice,
+        'parcelPrice': t.parcelPrice,
         'status': 'open',
         'createdAt': FieldValue.serverTimestamp(),
       });

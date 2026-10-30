@@ -43,7 +43,7 @@ class _TripScreenState extends State<TripScreen> {
       _streamKey = key;
       _stream = state.trips.watchDay(route, dateKey(_date));
     }
-    final s = state.settings;
+    final s = state.settings.routeTo(to);
 
     return Scaffold(
       backgroundColor: context.bg,
@@ -56,8 +56,8 @@ class _TripScreenState extends State<TripScreen> {
                 style: TextStyle(color: context.ink, fontSize: 18, fontWeight: FontWeight.w800)),
             Text(
               widget.wholeCarMode
-                  ? '${formatPrice(s.wholeCarPrice)} · ${state.region.name} → $toName'
-                  : '${formatPrice(s.seatPrice)} за место · ${state.region.name} → $toName',
+                  ? '${formatPrice(s.whole)} · ${state.region.name} → $toName'
+                  : '${formatPrice(s.seat)} за место · ${state.region.name} → $toName',
               style: TextStyle(color: context.muted, fontSize: 13),
             ),
           ],
@@ -255,6 +255,9 @@ class _TripSheet extends StatefulWidget {
 }
 
 class _TripSheetState extends State<_TripSheet> {
+  int _parcelPrice(AppState state, Trip t) =>
+      t.parcelPrice > 0 ? t.parcelPrice : state.settings.routeTo(t.to).parcel;
+
   int? _picked;
   bool _busy = false;
   late final Stream<List<Trip>> _day = context
@@ -287,7 +290,7 @@ class _TripSheetState extends State<_TripSheet> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Передать посылку · ${formatPrice(state.settings.parcelPrice)}'),
+        title: Text('Передать посылку · ${formatPrice(_parcelPrice(state, t))}'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -321,7 +324,7 @@ class _TripSheetState extends State<_TripSheet> {
           what: what.text.trim(),
           toName: toName.text.trim(),
           toPhone: toPhone.text.trim(),
-          price: state.settings.parcelPrice,
+          price: _parcelPrice(state, t),
         ),
       );
       return true;
@@ -420,7 +423,7 @@ class _TripSheetState extends State<_TripSheet> {
                 TextButton.icon(
                   onPressed: _busy ? null : () => _parcel(t),
                   icon: const Icon(Icons.inventory_2_outlined),
-                  label: Text('Передать посылку с этим рейсом · ${formatPrice(state.settings.parcelPrice)}'),
+                  label: Text('Передать посылку с этим рейсом · ${formatPrice(_parcelPrice(state, t))}'),
                 ),
                 for (final p in myParcels)
                   ListTile(
