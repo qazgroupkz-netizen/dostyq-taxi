@@ -97,6 +97,8 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
     );
     if (ok != true) return;
     final d = state.myDriver;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
     await state.trips.create(Trip(
       id: '',
       driverId: state.uid ?? '',
@@ -111,10 +113,14 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
       seatPrice: state.settings.seatPrice,
       wholePrice: state.settings.wholeCarPrice,
     ));
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(content: Text('Рейс создан. Клиенты уже видят его.')),
       );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Рейс не сохранился: $e'),
+        duration: const Duration(seconds: 8),
+      ));
     }
   }
 
