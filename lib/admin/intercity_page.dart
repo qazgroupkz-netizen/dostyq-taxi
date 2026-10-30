@@ -75,7 +75,7 @@ class _IntercityPageState extends State<IntercityPage> {
                       SelectableText('Место ${e.key}: ${e.value.name} ${e.value.phone}'),
                     for (final p in t.parcels)
                       SelectableText(
-                          'Посылка: ${p.what} — от ${p.senderName} ${p.senderPhone}, получит ${p.toName} ${p.toPhone}'),
+                          'Посылка: ${p.what}${p.price > 0 ? ' (${p.price} ₸)' : ''} — от ${p.senderName} ${p.senderPhone}, получит ${p.toName} ${p.toPhone}'),
                   ],
                 ),
               ),

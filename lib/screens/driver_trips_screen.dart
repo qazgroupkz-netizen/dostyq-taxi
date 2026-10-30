@@ -219,7 +219,7 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
                       Text('Посылки', style: TextStyle(color: context.ink, fontWeight: FontWeight.w700)),
                       for (final p in t.parcels)
                         _row(context, Icons.inventory_2_outlined,
-                            '${p.what} — от ${p.senderName} ${p.senderPhone}',
+                            '${p.what}${p.price > 0 ? ' (${formatPrice(p.price)})' : ''} — от ${p.senderName} ${p.senderPhone}',
                             'получит ${p.toName} ${p.toPhone}'),
                     ],
                   ],

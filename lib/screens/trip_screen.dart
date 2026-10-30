@@ -287,7 +287,7 @@ class _TripSheetState extends State<_TripSheet> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Передать посылку'),
+        title: Text('Передать посылку · ${formatPrice(state.settings.parcelPrice)}'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -321,6 +321,7 @@ class _TripSheetState extends State<_TripSheet> {
           what: what.text.trim(),
           toName: toName.text.trim(),
           toPhone: toPhone.text.trim(),
+          price: state.settings.parcelPrice,
         ),
       );
       return true;
@@ -419,14 +420,14 @@ class _TripSheetState extends State<_TripSheet> {
                 TextButton.icon(
                   onPressed: _busy ? null : () => _parcel(t),
                   icon: const Icon(Icons.inventory_2_outlined),
-                  label: const Text('Передать посылку с этим рейсом'),
+                  label: Text('Передать посылку с этим рейсом · ${formatPrice(state.settings.parcelPrice)}'),
                 ),
                 for (final p in myParcels)
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.inventory_2_rounded),
                     title: Text(p.what),
-                    subtitle: Text('Получит: ${p.toName} ${p.toPhone}'),
+                    subtitle: Text('Получит: ${p.toName} ${p.toPhone}${p.price > 0 ? ' · ${formatPrice(p.price)}' : ''}'),
                     trailing: IconButton(
                       icon: const Icon(Icons.close_rounded),
                       tooltip: 'Убрать посылку',

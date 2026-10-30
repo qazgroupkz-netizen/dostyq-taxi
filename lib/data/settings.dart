@@ -8,6 +8,7 @@ class TariffSettings {
   final int wholeCarPrice;
   final int deliveryPrice;
   final int cargoPrice;
+  final int parcelPrice;
   final int offerSeconds;
   final int showAllMinutes;
   final int freeWaitMinutes;
@@ -23,6 +24,7 @@ class TariffSettings {
     this.wholeCarPrice = 14000,
     this.deliveryPrice = 400,
     this.cargoPrice = 3000,
+    this.parcelPrice = 1500,
     this.offerSeconds = 20,
     this.showAllMinutes = 3,
     this.freeWaitMinutes = 5,
@@ -43,6 +45,7 @@ class TariffSettings {
       wholeCarPrice: v('wholeCarPrice', _d.wholeCarPrice),
       deliveryPrice: v('deliveryPrice', _d.deliveryPrice),
       cargoPrice: v('cargoPrice', _d.cargoPrice),
+      parcelPrice: v('parcelPrice', _d.parcelPrice),
       offerSeconds: v('offerSeconds', _d.offerSeconds),
       showAllMinutes: v('showAllMinutes', _d.showAllMinutes),
       freeWaitMinutes: v('freeWaitMinutes', _d.freeWaitMinutes),
@@ -60,6 +63,7 @@ class TariffSettings {
         'wholeCarPrice': wholeCarPrice,
         'deliveryPrice': deliveryPrice,
         'cargoPrice': cargoPrice,
+        'parcelPrice': parcelPrice,
         'offerSeconds': offerSeconds,
         'showAllMinutes': showAllMinutes,
         'freeWaitMinutes': freeWaitMinutes,

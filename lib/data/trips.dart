@@ -27,6 +27,7 @@ class Parcel {
   final String what;
   final String toName;
   final String toPhone;
+  final int price;
   const Parcel({
     required this.id,
     required this.clientId,
@@ -35,6 +36,7 @@ class Parcel {
     required this.what,
     required this.toName,
     required this.toPhone,
+    this.price = 0,
   });
 }
 
@@ -143,6 +145,7 @@ class FirestoreTripRepository implements TripRepository {
           what: p['what'] as String? ?? '',
           toName: p['toName'] as String? ?? '',
           toPhone: p['toPhone'] as String? ?? '',
+          price: (p['price'] as num?)?.toInt() ?? 0,
         ));
       }
     }
@@ -246,6 +249,7 @@ class FirestoreTripRepository implements TripRepository {
           'what': p.what,
           'toName': p.toName,
           'toPhone': p.toPhone,
+          'price': p.price,
         },
       });
 
