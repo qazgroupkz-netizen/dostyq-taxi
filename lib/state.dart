@@ -15,7 +15,7 @@ import 'widgets/taxi_map.dart' show dostykCenter;
 
 enum ClientState { home, seek, coming, arrived, ride, rate }
 enum DriverState { offline, waiting, offer, active }
-enum Tariff { local, border, whole, delivery }
+enum Tariff { local, border, whole, delivery, cargo }
 
 class AppState extends ChangeNotifier {
   AppState({
@@ -187,6 +187,9 @@ class AppState extends ChangeNotifier {
   String destination = '';
   String fromAddress = 'Определяем адрес…';
   String paymentMethod = 'cash'; // cash | kaspi
+
+  /// Что везти / что купить — для грузового и доставки.
+  String orderComment = '';
 
   // ─── UI ─────────────────────────────────────────────────────────────────
   bool sheetExpanded = true;
@@ -465,6 +468,7 @@ class AppState extends ChangeNotifier {
         price: tariffPriceInt,
         payment: paymentMethod,
         clientPhone: FirebaseAuth.instance.currentUser?.phoneNumber ?? '',
+        comment: orderComment,
       );
     } catch (_) {
       setClientState(ClientState.home);
@@ -524,6 +528,7 @@ class AppState extends ChangeNotifier {
     _stopWatchingDriver();
     activeOrderId = null;
     activeOrder = null;
+    orderComment = '';
     setClientState(ClientState.home);
     if (id != null) await orders.setStatus(id, 'cancelled');
   }
@@ -540,6 +545,7 @@ class AppState extends ChangeNotifier {
     destination = '';
     destPoint = null;
     route = null;
+    orderComment = '';
     setClientState(ClientState.home);
     if (id != null) await orders.update(id, {'rating': stars});
   }
@@ -554,7 +560,10 @@ class AppState extends ChangeNotifier {
 
   TaxiOrder? get offer {
     if (!isOnline || driverOrder != null) return null;
+    // Грузовые заказы — только грузовым машинам, остальные — только легковым.
+    final cargo = myDriver?.vehicle == 'cargo';
     for (final o in _searching) {
+      if ((o.tariff == 'cargo') != cargo) continue;
       if (!_skipped.contains(o.id) && !o.declinedBy.contains(uid)) return o;
     }
     return null;
@@ -789,6 +798,7 @@ class AppState extends ChangeNotifier {
       case Tariff.border:   return 'Ушарал';
       case Tariff.whole:    return 'Вся машина';
       case Tariff.delivery: return 'Доставка';
+      case Tariff.cargo:    return 'Грузовое';
     }
   }
 
@@ -825,6 +835,7 @@ class AppState extends ChangeNotifier {
       case Tariff.border:   return settings.seatPrice;
       case Tariff.whole:    return settings.wholeCarPrice;
       case Tariff.delivery: return settings.deliveryPrice;
+      case Tariff.cargo:    return settings.cargoPrice;
     }
   }
 

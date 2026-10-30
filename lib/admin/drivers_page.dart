@@ -166,7 +166,7 @@ class _DriverCard extends StatelessWidget {
                   children: [
                     Text(d.name.isEmpty ? 'Без имени' : d.name,
                         style: TextStyle(color: context.ink, fontSize: 16, fontWeight: FontWeight.w700)),
-                    SelectableText('${d.phone} · ${d.car} · ${d.plate}',
+                    SelectableText('${d.vehicle == 'cargo' ? 'Грузовая · ' : ''}${d.phone} · ${d.car} · ${d.plate}',
                         style: TextStyle(color: context.muted, fontSize: 13)),
                   ],
                 ),

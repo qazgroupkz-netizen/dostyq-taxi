@@ -78,6 +78,11 @@ class OrderRow extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               StatusChip(status: o.status),
+              if (o.tariff == 'cargo' || o.tariff == 'delivery')
+                Text(o.tariff == 'cargo' ? 'Грузовое' : 'Доставка',
+                    style: TextStyle(color: context.ink, fontSize: 12.5, fontWeight: FontWeight.w700)),
+              if (o.comment.isNotEmpty)
+                Text('«${o.comment}»', style: TextStyle(color: context.ink2, fontSize: 12.5)),
               if (o.createdBy == 'manager')
                 Text('по звонку', style: TextStyle(color: context.muted, fontSize: 12.5)),
               SelectableText(

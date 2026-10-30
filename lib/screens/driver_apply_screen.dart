@@ -27,6 +27,7 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
   final _uploading = <String>{};
 
   int _step = 0;
+  String _vehicle = 'car';
   DateTime? _ipUntil;
   DateTime? _elicenseUntil;
   bool _consent = false;
@@ -68,6 +69,7 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
     _color.text = p?.carColor ?? '';
     _plate.text = p?.plate ?? '';
     _ipUntil = p?.ipUntil;
+    _vehicle = p?.vehicle ?? 'car';
     _elicenseUntil = p?.elicenseUntil;
   }
 
@@ -172,6 +174,7 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
         carColor: _color.text.trim(),
         plate: _plate.text.trim().toUpperCase(),
         region: state.regionId,
+        vehicle: _vehicle,
         ipUntil: _photos.containsKey('ip') ? null : _ipUntil,
         elicenseUntil: _photos.containsKey('elicense') ? null : _elicenseUntil,
       );
@@ -448,6 +451,26 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
       children: [
         _title(context, 'Машина', 'Эти данные увидит клиент, когда вы примете заказ.'),
         const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          child: SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'car', label: Text('Легковая'), icon: Icon(Icons.local_taxi_rounded)),
+              ButtonSegment(value: 'cargo', label: Text('Грузовая'), icon: Icon(Icons.local_shipping_rounded)),
+            ],
+            selected: {_vehicle},
+            onSelectionChanged: (s) => setState(() => _vehicle = s.first),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 8, 4, 16),
+          child: Text(
+            _vehicle == 'cargo'
+                ? 'Вам будут приходить только грузовые заказы: переезды, стройматериалы, мебель.'
+                : 'Вам будут приходить поездки по посёлку и доставка.',
+            style: TextStyle(color: context.muted, fontSize: 13.5, height: 1.4),
+          ),
+        ),
         _input(context, _name, 'Имя и фамилия', caps: TextCapitalization.words),
         _input(context, _model, 'Марка и модель, например: Toyota Camry'),
         _input(context, _color, 'Цвет, например: белая'),

@@ -666,6 +666,7 @@ String _tariffLabel(String t) => switch (t) {
       'border'   => 'Ушарал',
       'whole'    => 'Вся машина',
       'delivery' => 'Доставка',
+      'cargo'    => 'Грузовое',
       _          => 'Посёлок',
     };
 
@@ -776,6 +777,13 @@ class _OfferCardState extends State<_OfferCard> {
             '${order.payment == 'kaspi' ? 'Kaspi' : 'Наличные'}',
             style: const TextStyle(color: Color(0xFF5E6571), fontSize: 14),
           ),
+          if (order.comment.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text('${order.tariff == 'cargo' ? 'Груз' : 'Заказ'}: ${order.comment}',
+                style: const TextStyle(
+                  color: Color(0xFF14171F), fontSize: 15, fontWeight: FontWeight.w700,
+                )),
+          ],
           const SizedBox(height: 14),
           // Кнопки
           Row(
@@ -933,6 +941,13 @@ class _ActiveRideCard extends StatelessWidget {
             '${order.payment == 'kaspi' ? 'Kaspi' : 'Наличные'}',
             style: const TextStyle(color: Color(0xFFA3ABB6), fontSize: 14),
           ),
+          if (order.comment.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text('${order.tariff == 'cargo' ? 'Груз' : 'Заказ'}: ${order.comment}',
+                style: const TextStyle(
+                  color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700,
+                )),
+          ],
           if (order.clientPhone.isNotEmpty) ...[
             const SizedBox(height: 4),
             SelectableText(

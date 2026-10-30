@@ -655,36 +655,106 @@ class _HomePanel extends StatelessWidget {
         ),
       );
     }
-    // Доставка
-    if (state.tariff == Tariff.delivery) {
-      return _CtaButton(
-        label: 'Оформить доставку',
-        sub: formatPrice(state.settings.deliveryPrice),
-        onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Оформление доставки появится на этапе 6'),
-            duration: Duration(seconds: 2),
-          ),
-        ),
-      );
-    }
-    // Обычный заказ (local)
+    final needsWhat = state.tariff == Tariff.delivery || state.tariff == Tariff.cargo;
+    final label = switch (state.tariff) {
+      Tariff.delivery => state.destination.isEmpty ? 'Куда привезти?' : 'Оформить доставку',
+      Tariff.cargo => state.destination.isEmpty ? 'Куда везём?' : 'Заказать грузовое',
+      _ => state.destination.isEmpty ? 'Куда едем?' : 'Заказать',
+    };
     return _CtaButton(
-      label: state.destination.isEmpty ? 'Куда едем?' : 'Заказать',
+      label: label,
       sub: state.destination.isEmpty ? null : state.tariffPrice,
-      onTap: () {
+      onTap: () async {
         if (state.destination.isEmpty) {
           openSearch(context);
-        } else {
-          final messenger = ScaffoldMessenger.of(context);
-          state.placeOrder().catchError((Object e) {
-            messenger.showSnackBar(SnackBar(
-              content: Text('Не удалось отправить заказ: $e'),
-              duration: const Duration(seconds: 6),
-            ));
-          });
+          return;
         }
+        final messenger = ScaffoldMessenger.of(context);
+        if (needsWhat) {
+          final what = await _askWhat(context, state.tariff == Tariff.cargo);
+          if (what == null) return;
+          state.orderComment = what;
+        } else {
+          state.orderComment = '';
+        }
+        state.placeOrder().catchError((Object e) {
+          messenger.showSnackBar(SnackBar(
+            content: Text('Не удалось отправить заказ: $e'),
+            duration: const Duration(seconds: 6),
+          ));
+        });
       },
+    );
+  }
+
+  /// «Что везём» для грузового или «что купить / забрать» для доставки.
+  Future<String?> _askWhat(BuildContext context, bool cargo) {
+    final ctrl = TextEditingController();
+    var loaders = false;
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => Container(
+          decoration: BoxDecoration(
+            color: ctx.paper,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: EdgeInsets.fromLTRB(
+              20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom + 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(cargo ? 'Что везём?' : 'Что привезти?',
+                  style: TextStyle(color: ctx.ink, fontSize: 22, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              Text(
+                cargo
+                    ? 'Например: холодильник и 10 мешков цемента'
+                    : 'Что купить или забрать и где. Например: хлеб и молоко из «Planeta». '
+                        'Покупки оплачиваете водителю отдельно.',
+                style: TextStyle(color: ctx.muted, fontSize: 14, height: 1.4),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                minLines: 2,
+                maxLines: 4,
+                textCapitalization: TextCapitalization.sentences,
+                style: TextStyle(color: ctx.ink, fontSize: 16),
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: ctx.surface,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              if (cargo)
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: loaders,
+                  onChanged: (v) => setSt(() => loaders = v ?? false),
+                  title: const Text('Нужны грузчики'),
+                ),
+              const SizedBox(height: 10),
+              _CtaButton(
+                label: 'Заказать',
+                onTap: () {
+                  final t = ctrl.text.trim();
+                  if (t.isEmpty) return;
+                  Navigator.pop(ctx, loaders ? '$t · нужны грузчики' : t);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1690,6 +1760,7 @@ class _TariffCard extends StatelessWidget {
       Tariff.border   => ('Ушарал', formatPrice(s.seatPrice), 'за место'),
       Tariff.whole    => ('Вся машина', formatPrice(s.wholeCarPrice), 'до Ушарала'),
       Tariff.delivery => ('Доставка', formatPrice(s.deliveryPrice), 'по посёлку'),
+      Tariff.cargo    => ('Грузовое', formatPrice(s.cargoPrice), 'Газель, грузовик'),
     };
     if (tariff == Tariff.local) {
       price = formatPrice(state.localPriceInt);

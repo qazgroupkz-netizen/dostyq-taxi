@@ -7,6 +7,7 @@ class TaxiOrder {
   final String clientName;
   final String clientPhone;
   final String createdBy;
+  final String comment;
   final String from;
   final double? fromLat;
   final double? fromLng;
@@ -29,6 +30,7 @@ class TaxiOrder {
     required this.clientName,
     this.clientPhone = '',
     this.createdBy = 'app',
+    this.comment = '',
     required this.from,
     this.fromLat,
     this.fromLng,
@@ -62,6 +64,7 @@ abstract class OrderRepository {
     required String payment,
     String clientPhone = '',
     String createdBy = 'app',
+    String comment = '',
   });
 
   Stream<TaxiOrder?> watch(String id);
@@ -116,6 +119,7 @@ class FirestoreOrderRepository implements OrderRepository {
       clientName: m['clientName'] as String? ?? '',
       clientPhone: m['clientPhone'] as String? ?? '',
       createdBy: m['createdBy'] as String? ?? 'app',
+      comment: m['comment'] as String? ?? '',
       from: label(m['from']),
       fromLat: coord(m['from'], 'lat'),
       fromLng: coord(m['from'], 'lng'),
@@ -147,6 +151,7 @@ class FirestoreOrderRepository implements OrderRepository {
     required String payment,
     String clientPhone = '',
     String createdBy = 'app',
+    String comment = '',
   }) async {
     final ref = await _orders.add({
       'clientId': clientId,
@@ -168,6 +173,7 @@ class FirestoreOrderRepository implements OrderRepository {
       'payment': payment,
       'status': 'searching',
       'createdBy': createdBy,
+      if (comment.isNotEmpty) 'comment': comment,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });

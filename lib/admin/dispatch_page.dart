@@ -242,7 +242,8 @@ class _DispatchPageState extends State<DispatchPage> {
     final pickup = o.fromLat == null ? null : LatLng(o.fromLat!, o.fromLng!);
     double? dist(DriverProfile d) =>
         pickup == null || d.lat == null ? null : Distance()(pickup, LatLng(d.lat!, d.lng!));
-    final list = [...drivers.where((d) => d.canWork)]
+    // Грузовой заказ — только грузовым машинам, остальные — легковым.
+    final list = [...drivers.where((d) => d.canWork && (d.vehicle == 'cargo') == (o.tariff == 'cargo'))]
       ..sort((a, b) {
         if (a.online != b.online) return a.online ? -1 : 1;
         return (dist(a) ?? 1e9).compareTo(dist(b) ?? 1e9);
@@ -308,6 +309,8 @@ class _CallOrderFormState extends State<_CallOrderForm> {
   Place? _from;
   Place? _to;
   String _payment = 'cash';
+  String _tariff = 'local';
+  final _comment = TextEditingController();
   bool _priceTouched = false;
   bool _sending = false;
   int _formKey = 0;
@@ -317,11 +320,14 @@ class _CallOrderFormState extends State<_CallOrderForm> {
     _phone.dispose();
     _name.dispose();
     _price.dispose();
+    _comment.dispose();
     super.dispose();
   }
 
   int _suggestPrice(AppState state) {
     final s = state.settings;
+    if (_tariff == 'cargo') return s.cargoPrice;
+    if (_tariff == 'delivery') return s.deliveryPrice;
     if (_from?.category == 'kpp' || _to?.category == 'kpp') return s.kppPrice;
     if (_from != null && _to != null &&
         Distance()(_from!.point, _to!.point) * 1.3 > s.farMeters) {
@@ -359,10 +365,11 @@ class _CallOrderFormState extends State<_CallOrderForm> {
             ? null
             : (lat: toPlace.point.latitude, lng: toPlace.point.longitude),
         region: state.regionId,
-        tariff: 'local',
+        tariff: _tariff,
         price: price,
         payment: _payment,
         createdBy: 'manager',
+        comment: _comment.text.trim(),
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -372,6 +379,8 @@ class _CallOrderFormState extends State<_CallOrderForm> {
         _phone.clear();
         _name.clear();
         _price.clear();
+        _comment.clear();
+        _tariff = 'local';
         _from = null;
         _to = null;
         _priceTouched = false;
@@ -472,6 +481,26 @@ class _CallOrderFormState extends State<_CallOrderForm> {
           _placeField(context, 'Откуда: место или адрес', true),
           const SizedBox(height: 10),
           _placeField(context, 'Куда', false),
+          const SizedBox(height: 10),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'local', label: Text('Такси')),
+              ButtonSegment(value: 'cargo', label: Text('Грузовое')),
+              ButtonSegment(value: 'delivery', label: Text('Доставка')),
+            ],
+            selected: {_tariff},
+            onSelectionChanged: (v) => setState(() {
+              _tariff = v.first;
+              if (!_priceTouched) _price.text = '${_suggestPrice(state)}';
+            }),
+          ),
+          if (_tariff != 'local') ...[
+            const SizedBox(height: 10),
+            TextField(
+              controller: _comment,
+              decoration: _deco(context, _tariff == 'cargo' ? 'Что везём' : 'Что купить / забрать'),
+            ),
+          ],
           const SizedBox(height: 10),
           Row(
             children: [

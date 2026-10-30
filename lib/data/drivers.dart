@@ -33,6 +33,9 @@ class DriverProfile {
   final String carColor;
   final String plate;
   final String region;
+
+  /// 'car' — легковая (такси, доставка), 'cargo' — грузовая (Газель, грузовик).
+  final String vehicle;
   final Approval approval;
   final String? rejectReason;
   final DateTime? subscriptionUntil;
@@ -55,6 +58,7 @@ class DriverProfile {
     this.carColor = '',
     this.plate = '',
     this.region = 'dostyk',
+    this.vehicle = 'car',
     this.approval = Approval.none,
     this.rejectReason,
     this.subscriptionUntil,
@@ -91,6 +95,7 @@ class DriverProfile {
         carColor: m['carColor'] as String? ?? '',
         plate: m['plate'] as String? ?? '',
         region: m['region'] as String? ?? 'dostyk',
+        vehicle: m['vehicle'] as String? ?? 'car',
         approval: _approvalOf(m['approval'] as String?),
         rejectReason: m['rejectReason'] as String?,
         subscriptionUntil: (m['subscriptionUntil'] as Timestamp?)?.toDate(),
@@ -118,6 +123,7 @@ abstract class DriverRepository {
     required String carColor,
     required String plate,
     required String region,
+    String vehicle = 'car',
     DateTime? ipUntil,
     DateTime? elicenseUntil,
   });
@@ -168,6 +174,7 @@ class FirestoreDriverRepository implements DriverRepository {
     required String carColor,
     required String plate,
     required String region,
+    String vehicle = 'car',
     DateTime? ipUntil,
     DateTime? elicenseUntil,
   }) =>
@@ -178,6 +185,7 @@ class FirestoreDriverRepository implements DriverRepository {
         'carColor': carColor,
         'plate': plate,
         'region': region,
+        'vehicle': vehicle,
         'ipUntil': ipUntil == null ? FieldValue.delete() : Timestamp.fromDate(ipUntil),
         'elicenseUntil': elicenseUntil == null ? FieldValue.delete() : Timestamp.fromDate(elicenseUntil),
         'approval': Approval.pending.name,
