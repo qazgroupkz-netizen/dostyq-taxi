@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../data/drivers.dart';
+import '../data/orders.dart';
 import '../firebase_options.dart';
 import '../services/sound.dart';
 import '../screens/auth_screen.dart';
@@ -34,7 +37,7 @@ class AdminApp extends StatelessWidget {
     return MaterialApp(
       title: 'DOSTYQ TAXI · Админ',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
+      theme: AppTheme.admin(),
       builder: (context, child) => Listener(
         onPointerDown: (_) => unlockSound(),
         child: child,
@@ -74,7 +77,7 @@ class _NoAccess extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.lock_outline_rounded, color: context.taxi, size: 40),
+                Icon(Icons.lock_outline_rounded, color: context.accent, size: 40),
                 const SizedBox(height: 16),
                 Text('Нет доступа к админке',
                     style: TextStyle(
@@ -119,146 +122,343 @@ class AdminHome extends StatefulWidget {
   State<AdminHome> createState() => _AdminHomeState();
 }
 
+/// Пункт меню: группа, значок, название, страница, только для админа.
+typedef _Nav = ({String group, IconData icon, String label, Widget page, bool ownerOnly});
+
 class _AdminHomeState extends State<AdminHome> {
   int _page = 0;
+  Timer? _clock;
 
-  // Последнее поле: раздел только для админа (менеджер его не видит).
-  static const _all = <(IconData, String, Widget, bool)>[
-    (Icons.headset_mic_outlined, 'Диспетчерская', DispatchPage(), false),
-    (Icons.receipt_long_outlined, 'Заказы', OrdersPage(), false),
-    (Icons.badge_outlined, 'Водители', DriversPage(), true),
-    (Icons.tune_rounded, 'Тарифы', TariffsPage(), true),
-    (Icons.place_outlined, 'Места', PlacesPage(), true),
-    (Icons.location_city_rounded, 'Районы', RegionsPage(), true),
+  static const _all = <_Nav>[
+    (group: 'Оперативно', icon: Icons.headset_mic_outlined, label: 'Диспетчерская',
+        page: DispatchPage(), ownerOnly: false),
+    (group: 'Оперативно', icon: Icons.format_list_bulleted_rounded, label: 'Заказы',
+        page: OrdersPage(), ownerOnly: false),
+    (group: 'Водители', icon: Icons.group_outlined, label: 'Водители и анкеты',
+        page: DriversPage(), ownerOnly: true),
+    (group: 'Настройки', icon: Icons.place_outlined, label: 'Адреса',
+        page: PlacesPage(), ownerOnly: true),
+    (group: 'Настройки', icon: Icons.tune_rounded, label: 'Тарифы и правила',
+        page: TariffsPage(), ownerOnly: true),
+    (group: 'Настройки', icon: Icons.location_city_rounded, label: 'Районы',
+        page: RegionsPage(), ownerOnly: true),
   ];
+
+  late final Stream<List<DriverProfile>> _drivers = context.read<AppState>().drivers.watchAll();
+  Stream<List<TaxiOrder>>? _orders;
+  String? _region;
+
+  @override
+  void initState() {
+    super.initState();
+    // Часы в шапке и счётчик «ждут водителя».
+    _clock = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _clock?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final wide = MediaQuery.of(context).size.width >= 900;
-    final isOwner = context.select<AppState, bool>((s) => s.role == 'admin');
-    final pages = [for (final p in _all) if (isOwner || !p.$4) p];
-    if (_page >= pages.length) _page = 0;
-    final body = pages[_page].$3;
-    final name = context.select<AppState, String>((s) => s.userName);
-
-    if (!wide) {
-      return Scaffold(
-        backgroundColor: context.bg,
-        appBar: AppBar(
-          title: Text(pages[_page].$2),
-          actions: [
-            const _RegionPicker(),
-            IconButton(
-              tooltip: 'Выйти',
-              icon: const Icon(Icons.logout_rounded),
-              onPressed: () => FirebaseAuth.instance.signOut(),
-            ),
-          ],
-        ),
-        body: body,
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _page,
-          onDestinationSelected: (i) => setState(() => _page = i),
-          destinations: [
-            for (final (icon, label, _, _) in pages)
-              NavigationDestination(icon: Icon(icon), label: label),
-          ],
-        ),
-      );
+    final state = context.watch<AppState>();
+    if (_region != state.regionId) {
+      _region = state.regionId;
+      _orders = state.orders.watchRegion(state.regionId);
     }
+    final wide = MediaQuery.of(context).size.width >= 900;
+    final isOwner = state.role == 'admin';
+    final pages = [for (final p in _all) if (isOwner || !p.ownerOnly) p];
+    if (_page >= pages.length) _page = 0;
 
-    return Scaffold(
-      backgroundColor: context.bg,
-      body: Row(
-        children: [
-          NavigationRail(
-            selectedIndex: _page,
-            onDestinationSelected: (i) => setState(() => _page = i),
-            labelType: NavigationRailLabelType.all,
-            leading: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Column(
-                children: [
-                  Text('DOSTYQ', style: TextStyle(
-                    color: context.taxi, fontWeight: FontWeight.w800, fontSize: 13,
-                  )),
-                  Text('админ', style: TextStyle(color: context.muted, fontSize: 12)),
-                ],
-              ),
-            ),
-            trailing: Expanded(
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(name, style: TextStyle(color: context.muted, fontSize: 12)),
-                      IconButton(
-                        tooltip: 'Выйти',
-                        icon: const Icon(Icons.logout_rounded),
-                        onPressed: () => FirebaseAuth.instance.signOut(),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            destinations: [
-              for (final (icon, label, _, _) in pages)
-                NavigationRailDestination(icon: Icon(icon), label: Text(label)),
+    return StreamBuilder<List<DriverProfile>>(
+      stream: _drivers,
+      builder: (context, dSnap) => StreamBuilder<List<TaxiOrder>>(
+        stream: _orders,
+        builder: (context, oSnap) {
+          final pending = (dSnap.data ?? const <DriverProfile>[])
+              .where((d) => d.region == state.regionId && d.approval == Approval.pending)
+              .length;
+          final waiting =
+              (oSnap.data ?? const <TaxiOrder>[]).where((o) => o.status == 'searching').length;
+          final counts = {'Диспетчерская': waiting, 'Водители и анкеты': pending};
+
+          final side = _Sidebar(
+            pages: pages,
+            selected: _page,
+            counts: counts,
+            onSelect: (i) {
+              setState(() => _page = i);
+              if (!wide) Navigator.of(context).maybePop();
+            },
+          );
+          final content = Column(
+            children: [
+              _Header(wide: wide),
+              Expanded(child: pages[_page].page),
             ],
-          ),
-          const VerticalDivider(width: 1),
-          Expanded(
-            child: Column(
-              children: [
-                Container(
-                  height: 56,
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  color: context.paper,
-                  child: Row(
-                    children: [
-                      Text('Район:', style: TextStyle(color: context.muted, fontSize: 14)),
-                      const SizedBox(width: 10),
-                      const _RegionPicker(),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                Expanded(child: body),
-              ],
-            ),
-          ),
-        ],
+          );
+
+          if (wide) {
+            return Scaffold(
+              backgroundColor: AdminC.bg,
+              body: Row(children: [side, Expanded(child: content)]),
+            );
+          }
+          return Scaffold(
+            backgroundColor: AdminC.bg,
+            drawer: Drawer(width: 248, backgroundColor: AdminC.side, child: side),
+            body: content,
+          );
+        },
       ),
     );
   }
 }
 
-/// Район, с которым сейчас работает админ: цены и места показываются для него.
+class _Sidebar extends StatelessWidget {
+  final List<_Nav> pages;
+  final int selected;
+  final Map<String, int> counts;
+  final ValueChanged<int> onSelect;
+  const _Sidebar({
+    required this.pages,
+    required this.selected,
+    required this.counts,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final name = context.select<AppState, String>((s) => s.userName);
+    final items = <Widget>[];
+    String? group;
+    for (var i = 0; i < pages.length; i++) {
+      final p = pages[i];
+      if (p.group != group) {
+        group = p.group;
+        items.add(Padding(
+          padding: const EdgeInsets.fromLTRB(12, 18, 12, 6),
+          child: Text(p.group.toUpperCase(),
+              style: const TextStyle(
+                color: AdminC.sideMuted, fontSize: 11, fontWeight: FontWeight.w700,
+                letterSpacing: .9,
+              )),
+        ));
+      }
+      final active = i == selected;
+      final count = counts[p.label] ?? 0;
+      items.add(Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Material(
+          color: active ? AdminC.yellow : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            hoverColor: AdminC.side2,
+            onTap: () => onSelect(i),
+            child: SizedBox(
+              height: 44,
+              child: Row(
+                children: [
+                  const SizedBox(width: 12),
+                  Icon(p.icon, size: 20, color: active ? AdminC.ink : AdminC.sideText),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(p.label,
+                        style: TextStyle(
+                          color: active ? AdminC.ink : AdminC.sideText,
+                          fontSize: 14.5, fontWeight: FontWeight.w600,
+                        )),
+                  ),
+                  if (count > 0)
+                    Container(
+                      margin: const EdgeInsets.only(right: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: active ? AdminC.ink : AdminC.bad,
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Text('$count',
+                          style: const TextStyle(
+                            color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w800,
+                          )),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ));
+    }
+
+    return Container(
+      width: 248,
+      color: AdminC.side,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 18, 12, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const SizedBox(width: 6),
+                  Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(
+                      color: AdminC.yellow,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.local_taxi_rounded, color: AdminC.ink, size: 22),
+                  ),
+                  const SizedBox(width: 10),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('DOSTYQ TAXI',
+                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
+                      Text('Админ-панель',
+                          style: TextStyle(color: AdminC.sideMuted, fontSize: 12, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const _RegionPicker(),
+              Expanded(child: ListView(children: items)),
+              const Divider(color: AdminC.side2),
+              Row(
+                children: [
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(name,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: AdminC.sideText, fontSize: 13)),
+                  ),
+                  IconButton(
+                    tooltip: 'Выйти',
+                    icon: const Icon(Icons.logout_rounded, color: AdminC.sideText, size: 20),
+                    onPressed: () => FirebaseAuth.instance.signOut(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Шапка: приветствие, дата и время, район; справа — значок пользователя.
+class _Header extends StatelessWidget {
+  final bool wide;
+  const _Header({required this.wide});
+
+  static const _days = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
+  static const _months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля',
+      'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final now = DateTime.now();
+    final hello = now.hour < 5
+        ? 'Доброй ночи'
+        : now.hour < 12
+            ? 'Доброе утро'
+            : now.hour < 18
+                ? 'Добрый день'
+                : 'Добрый вечер';
+    final time = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(wide ? 28 : 8, 14, wide ? 28 : 16, 4),
+        child: Row(
+          children: [
+            if (!wide)
+              Builder(
+                builder: (ctx) => IconButton(
+                  icon: const Icon(Icons.menu_rounded),
+                  onPressed: () => Scaffold.of(ctx).openDrawer(),
+                ),
+              ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('$hello${state.userName.isEmpty ? '' : ', ${state.userName}'}',
+                      style: const TextStyle(color: AdminC.ink, fontSize: 15, fontWeight: FontWeight.w700)),
+                  Text(
+                    '${_days[now.weekday - 1]}, ${now.day} ${_months[now.month - 1]} · $time · ${state.region.name}',
+                    style: TextStyle(color: context.muted, fontSize: 13, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              width: 42, height: 42,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFFFFD12E), Color(0xFFFFB020)]),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                state.userName.isEmpty ? 'А' : state.userName.characters.first.toUpperCase(),
+                style: const TextStyle(color: AdminC.ink, fontWeight: FontWeight.w800, fontSize: 16),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Район, с которым сейчас работает админ: всё в админке показывается для него.
 class _RegionPicker extends StatelessWidget {
   const _RegionPicker();
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    return DropdownButton<String>(
-      value: state.regionId,
-      underline: const SizedBox.shrink(),
-      borderRadius: BorderRadius.circular(12),
-      items: [
-        for (final r in state.allRegions)
-          DropdownMenuItem(
-            value: r.id,
-            child: Text(r.active ? r.name : '${r.name} (выкл.)',
-                style: const TextStyle(fontWeight: FontWeight.w700)),
-          ),
-      ],
-      onChanged: (id) {
-        if (id != null) state.setRegion(id, movePickup: false);
-      },
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: AdminC.side2,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: DropdownButton<String>(
+        value: state.regionId,
+        isExpanded: true,
+        underline: const SizedBox.shrink(),
+        dropdownColor: AdminC.side2,
+        iconEnabledColor: AdminC.sideText,
+        borderRadius: BorderRadius.circular(12),
+        items: [
+          for (final r in state.allRegions)
+            DropdownMenuItem(
+              value: r.id,
+              child: Row(
+                children: [
+                  const Icon(Icons.place_outlined, color: Colors.white, size: 18),
+                  const SizedBox(width: 8),
+                  Text(r.active ? r.name : '${r.name} (выкл.)',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                ],
+              ),
+            ),
+        ],
+        onChanged: (id) {
+          if (id != null) state.setRegion(id, movePickup: false);
+        },
+      ),
     );
   }
 }

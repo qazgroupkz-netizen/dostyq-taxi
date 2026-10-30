@@ -43,17 +43,71 @@ class C {
   static const dangerSftDk= Color(0xFF3A1C1E);
 }
 
+// ─── Фирменные цвета, если они отличаются от приложения (админка — жёлтая) ──
+class Brand extends ThemeExtension<Brand> {
+  /// Фон главных кнопок и активных элементов.
+  final Color taxi;
+  final Color onTaxi;
+  final Color taxiSoft;
+  final Color jadeLine;
+
+  /// Цвет акцентного текста и иконок на светлом фоне.
+  final Color accent;
+  final Color bg;
+  final Color surface;
+  final Color line;
+
+  const Brand({
+    required this.taxi,
+    required this.onTaxi,
+    required this.taxiSoft,
+    required this.jadeLine,
+    required this.accent,
+    required this.bg,
+    required this.surface,
+    required this.line,
+  });
+
+  @override
+  Brand copyWith() => this;
+
+  @override
+  Brand lerp(ThemeExtension<Brand>? other, double t) => this;
+}
+
+// Цвета из прототипа админки (reference/admin-prototype.html).
+class AdminC {
+  static const yellow     = Color(0xFFFFD12E);
+  static const yellowSoft = Color(0xFFFFF6D1);
+  static const yellowLine = Color(0xFFE8C14A);
+  static const ink        = Color(0xFF111317);
+  static const bg         = Color(0xFFF2F3F5);
+  static const surface    = Color(0xFFF3F4F6);
+  static const line       = Color(0xFFE6E8EB);
+  static const side       = Color(0xFF101216);
+  static const side2      = Color(0xFF1B1E24);
+  static const sideText   = Color(0xFFC9CDD4);
+  static const sideMuted  = Color(0xFF6E7480);
+  static const ok         = Color(0xFF13A35A);
+  static const warn       = Color(0xFFC26A00);
+  static const bad        = Color(0xFFD93A3F);
+  static const info       = Color(0xFF2B6CF6);
+}
+
 // ─── Расширение темы для доступа к кастомным цветам ────────────────────────
 extension ThemeExtX on BuildContext {
   bool get isDark => Theme.of(this).brightness == Brightness.dark;
-  Color get taxi    => isDark ? C.taxiDk    : C.taxi;
-  Color get onTaxi  => isDark ? C.onTaxiDk  : C.onTaxi;
-  Color get taxiSft => isDark ? C.taxiSftDk : C.taxiSoft;
-  Color get jLine   => isDark ? C.jadeLineDk: C.jadeLine;
+  Brand? get _brand => Theme.of(this).extension<Brand>();
+  Color get taxi    => _brand?.taxi ?? (isDark ? C.taxiDk    : C.taxi);
+  Color get onTaxi  => _brand?.onTaxi ?? (isDark ? C.onTaxiDk  : C.onTaxi);
+  Color get taxiSft => _brand?.taxiSoft ?? (isDark ? C.taxiSftDk : C.taxiSoft);
+  Color get jLine   => _brand?.jadeLine ?? (isDark ? C.jadeLineDk: C.jadeLine);
+  /// Акцентный текст и иконки (в приложении — зелёный, в админке — тёмный).
+  Color get accent  => _brand?.accent ?? taxi;
   Color get okInk   => isDark ? C.okInkDk   : C.okInk;
   Color get paper   => isDark ? C.paperDk   : C.paper;
-  Color get surface => isDark ? C.surfDk    : C.surface;
-  Color get lineC   => isDark ? C.lineDk    : C.line;
+  Color get surface => _brand?.surface ?? (isDark ? C.surfDk    : C.surface);
+  Color get lineC   => _brand?.line ?? (isDark ? C.lineDk    : C.line);
   Color get line2C  => isDark ? C.line2Dk   : C.line2;
   Color get ink     => isDark ? C.inkDk     : C.ink;
   Color get ink2    => isDark ? C.ink2Dk    : C.ink2;
@@ -62,7 +116,7 @@ extension ThemeExtX on BuildContext {
   Color get danger  => isDark ? C.dangerDk  : C.danger;
   Color get dSoft   => isDark ? C.dangerSftDk: C.dangerSoft;
   Color get gold    => isDark ? C.goldDk    : C.gold;
-  Color get bg      => isDark ? C.bgDk      : C.bg;
+  Color get bg      => _brand?.bg ?? (isDark ? C.bgDk      : C.bg);
 }
 
 // ─── Темы приложения ────────────────────────────────────────────────────────
@@ -85,6 +139,40 @@ class AppTheme {
     ),
     textTheme: _text(ThemeData.light().textTheme),
     appBarTheme: const AppBarTheme(backgroundColor: C.paper, foregroundColor: C.ink),
+  );
+
+  /// Админка: жёлтый акцент и тёмное меню, как в прототипе.
+  static ThemeData admin() => ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.light,
+    scaffoldBackgroundColor: AdminC.bg,
+    colorScheme: const ColorScheme.light(
+      primary: AdminC.ink, onPrimary: Colors.white,
+      surface: C.paper,
+      secondary: AdminC.yellow, onSecondary: AdminC.ink,
+    ),
+    textTheme: _text(ThemeData.light().textTheme),
+    appBarTheme: const AppBarTheme(backgroundColor: C.paper, foregroundColor: AdminC.ink),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: AdminC.yellow,
+        foregroundColor: AdminC.ink,
+        textStyle: GoogleFonts.onest(fontWeight: FontWeight.w700),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    ),
+    extensions: const [
+      Brand(
+        taxi: AdminC.yellow,
+        onTaxi: AdminC.ink,
+        taxiSoft: AdminC.yellowSoft,
+        jadeLine: AdminC.yellowLine,
+        accent: AdminC.ink,
+        bg: AdminC.bg,
+        surface: AdminC.surface,
+        line: AdminC.line,
+      ),
+    ],
   );
 
   static ThemeData dark() => ThemeData(

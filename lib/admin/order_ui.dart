@@ -11,7 +11,7 @@ String hm(DateTime? t) => t == null
       'accepted' => ('Водитель едет', const Color(0xFF2F7BEA)),
       'arrived' => ('На месте', const Color(0xFF2F7BEA)),
       'riding' => ('В пути', const Color(0xFF6E56CF)),
-      'done' => ('Выполнен', context.taxi),
+      'done' => ('Выполнен', AdminC.ok),
       'cancelled' => ('Отменён', context.muted),
       _ => (s, context.muted),
     };

@@ -164,7 +164,7 @@ class _AuthScreenState extends State<AuthScreen> {
             const SizedBox(height: 22),
             Text('DOSTYQ TAXI',
                 style: TextStyle(
-                  color: context.taxi,
+                  color: context.accent,
                   fontSize: 13, fontWeight: FontWeight.w700,
                   letterSpacing: 1.5,
                 )),

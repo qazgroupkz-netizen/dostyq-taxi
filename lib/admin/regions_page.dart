@@ -194,7 +194,7 @@ class _RegionsPageState extends State<RegionsPage> {
           ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 4),
             leading: Icon(Icons.location_city_rounded,
-                color: r.active ? context.taxi : context.muted),
+                color: r.active ? AdminC.ok : context.muted),
             title: Text(r.name, style: const TextStyle(fontWeight: FontWeight.w600)),
             subtitle: Text(
               '${r.active ? 'Работает' : 'Выключен'} · радиус ${r.radiusKm.toStringAsFixed(0)} км',

@@ -263,7 +263,7 @@ class _DispatchPageState extends State<DispatchPage> {
               child: ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.local_taxi_rounded,
-                    color: d.online ? ctx.taxi : ctx.muted),
+                    color: d.online ? AdminC.ok : ctx.muted),
                 title: Text('${d.name} · ${d.plate}'),
                 subtitle: Text([
                   d.online ? 'на линии' : 'не на линии',

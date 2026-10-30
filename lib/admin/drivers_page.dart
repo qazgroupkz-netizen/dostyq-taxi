@@ -42,7 +42,7 @@ class _DriversPageState extends State<DriversPage> {
               Material(
                 color: context.paper,
                 child: TabBar(
-                  labelColor: context.taxi,
+                  labelColor: context.accent,
                   indicatorColor: context.taxi,
                   tabs: [
                     Tab(text: 'Анкеты (${pending.length})'),
@@ -135,7 +135,7 @@ class _DriverCard extends StatelessWidget {
     final (statusText, statusColor) = switch (d.approval) {
       Approval.pending => ('На проверке', const Color(0xFFD97A00)),
       Approval.approved => d.subscriptionActive
-          ? ('Работает', context.taxi)
+          ? ('Работает', AdminC.ok)
           : ('Подписка закончилась', context.danger),
       Approval.rejected => ('Отклонён', context.danger),
       Approval.blocked => ('Заблокирован', context.danger),
@@ -157,7 +157,7 @@ class _DriverCard extends StatelessWidget {
               CircleAvatar(
                 backgroundColor: context.taxiSft,
                 child: Text(d.name.isEmpty ? '?' : d.name.characters.first.toUpperCase(),
-                    style: TextStyle(color: context.taxi, fontWeight: FontWeight.w800)),
+                    style: TextStyle(color: context.accent, fontWeight: FontWeight.w800)),
               ),
               const SizedBox(width: 12),
               Expanded(
