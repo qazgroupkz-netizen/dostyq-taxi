@@ -49,6 +49,13 @@ jobs:
           sed -i 's/kz.dostyq.dostyq_taxi/kz.dostyq.taxi/g' android/app/src/main/AndroidManifest.xml
           sed -i 's/android:label="[^"]*"/android:label="ALAKOL TAXI"/' android/app/src/main/AndroidManifest.xml
 
+      - name: App icon
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq librsvg2-bin
+          for d in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
+            rsvg-convert -w ${d#*:} -h ${d#*:} assets/icon/icon.svg -o android/app/src/main/res/mipmap-${d%%:*}/ic_launcher.png
+          done
+
       - name: Fix Kotlin package
         run: |
           mkdir -p android/app/src/main/kotlin/kz/dostyq/taxi
@@ -104,6 +111,18 @@ jobs:
             --org kz.dostyq \
             --platforms web \
             .
+
+      - name: App icon
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq librsvg2-bin
+          rsvg-convert -w 32 -h 32 assets/icon/icon.svg -o web/favicon.png
+          for s in 192 512; do
+            rsvg-convert -w $s -h $s assets/icon/icon.svg -o web/icons/Icon-$s.png
+            rsvg-convert -w $s -h $s assets/icon/icon.svg -o web/icons/Icon-maskable-$s.png
+          done
+          rsvg-convert -w 180 -h 180 assets/icon/icon.svg -o web/apple-touch-icon.png
+          sed -i 's|<link rel="apple-touch-icon" href="[^"]*">|<link rel="apple-touch-icon" href="apple-touch-icon.png">|' web/index.html
+          sed -i 's|"theme_color": "[^"]*"|"theme_color": "#FFD12E"|; s|"background_color": "[^"]*"|"background_color": "#FFD12E"|' web/manifest.json
 
       - name: Brand name in browser tab and home screen
         run: |
