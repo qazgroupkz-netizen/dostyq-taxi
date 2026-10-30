@@ -587,6 +587,10 @@ class AppState extends ChangeNotifier {
   static const localFarPrice = 2000;
   static const localFarMeters = 3000;
 
+  // Ушарал: место 3 500 ₸, вся машина — 4 места.
+  static const seatPrice = 3500;
+  static const wholeCarPrice = seatPrice * 4;
+
   /// Длина поездки: по дорогам, а пока маршрут не посчитан — по прямой.
   double? get tripMeters {
     final to = destPoint;
@@ -603,8 +607,8 @@ class AppState extends ChangeNotifier {
   int get tariffPriceInt {
     switch (tariff) {
       case Tariff.local:    return localPriceInt;
-      case Tariff.border:   return 5000;
-      case Tariff.whole:    return 18000;
+      case Tariff.border:   return seatPrice;
+      case Tariff.whole:    return wholeCarPrice;
       case Tariff.delivery: return 400;
     }
   }

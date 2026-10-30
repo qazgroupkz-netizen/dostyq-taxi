@@ -562,7 +562,7 @@ class _HomePanel extends StatelessWidget {
     if (state.tariff == Tariff.border) {
       return _CtaButton(
         label: 'Выбрать рейс',
-        sub: '5 000 ₸ / место',
+        sub: '${formatPrice(AppState.seatPrice)} / место',
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const TripScreen()),
         ),
@@ -572,7 +572,7 @@ class _HomePanel extends StatelessWidget {
     if (state.tariff == Tariff.whole) {
       return _CtaButton(
         label: 'Выбрать время',
-        sub: '18 000 ₸',
+        sub: formatPrice(AppState.wholeCarPrice),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
               builder: (_) => const TripScreen(wholeCarMode: true)),
@@ -1675,10 +1675,10 @@ class _TariffCard extends StatelessWidget {
   }
 }
 
-const _tariffData = {
+final _tariffData = {
   Tariff.local:    ('Посёлок',    '500 ₸',    '≈ 3 мин'),
-  Tariff.border:   ('Ушарал',     '5 000 ₸',  'за место'),
-  Tariff.whole:    ('Вся машина', '18 000 ₸', 'до Ушарала'),
+  Tariff.border:   ('Ушарал',     formatPrice(AppState.seatPrice),     'за место'),
+  Tariff.whole:    ('Вся машина', formatPrice(AppState.wholeCarPrice), 'до Ушарала'),
   Tariff.delivery: ('Доставка',   '400 ₸',    'по посёлку'),
 };
 

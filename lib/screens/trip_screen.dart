@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import '../state.dart';
 import '../theme.dart';
+
+final _seat = formatPrice(AppState.seatPrice);
+final _whole = formatPrice(AppState.wholeCarPrice);
 
 // ════════════════════════════════════════════════════════════════
 //  Экран рейсов Достык → Ушарал
@@ -60,8 +64,8 @@ class _TripScreenState extends State<TripScreen> {
                       ),
                       Text(
                         widget.wholeCarMode
-                            ? '18 000 ₸ · 160 км'
-                            : '5 000 ₸ / место · 160 км',
+                            ? '$_whole · 160 км'
+                            : '$_seat / место · 160 км',
                         style: TextStyle(color: context.muted, fontSize: 13),
                       ),
                     ],
@@ -254,7 +258,7 @@ class _TripCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    '18 000 ₸',
+                    _whole,
                     style: TextStyle(
                       color: context.taxi,
                       fontSize: 14, fontWeight: FontWeight.w700,
@@ -385,8 +389,8 @@ class _SeatPickerState extends State<_SeatPicker> {
                 ),
               _BookBtn(
                 label: widget.wholeCarMode
-                    ? 'Забронировать машину · 18 000 ₸'
-                    : 'Забронировать место · 5 000 ₸',
+                    ? 'Забронировать машину · $_whole'
+                    : 'Забронировать место · $_seat',
                 enabled: widget.wholeCarMode || _pickedSeat >= 0,
                 onTap: () => setState(() => _booked = true),
               ),
@@ -618,7 +622,7 @@ class _BookedSuccess extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               wholeCarMode
-                  ? '${trip.time} · ${trip.driver}\nСтоимость: 18 000 ₸'
+                  ? '${trip.time} · ${trip.driver}\nСтоимость: $_whole'
                   : '${trip.time} · Место ${seat + 1}\n${trip.driver} · ${trip.car}',
               style: TextStyle(
                 color: context.muted, fontSize: 15, height: 1.5),
