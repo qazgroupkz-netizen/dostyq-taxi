@@ -34,6 +34,7 @@ const _ruleFields = <_Field>[
 class _TariffsPageState extends State<TariffsPage> {
   final _ctrls = <String, TextEditingController>{};
   TariffSettings? _loaded;
+  String? _region;
   bool _saving = false;
 
   @override
@@ -74,7 +75,8 @@ class _TariffsPageState extends State<TariffsPage> {
     setState(() => _saving = true);
     final s = TariffSettings.fromMap(m);
     try {
-      await context.read<AppState>().catalog.saveSettings(s);
+      final st = context.read<AppState>();
+      await st.catalog.saveSettings(st.regionId, s);
       if (!mounted) return;
       _loaded = s;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -92,7 +94,13 @@ class _TariffsPageState extends State<TariffsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final settings = context.watch<AppState>().settings;
+    final st = context.watch<AppState>();
+    final settings = st.settings;
+    // Сменили район — показываем его цены, даже если поля успели поправить.
+    if (_region != st.regionId) {
+      _region = st.regionId;
+      _loaded = null;
+    }
     // Первые данные из базы или чужое сохранение, пока здесь ничего не правили.
     // Поля меняем после кадра: правка контроллера во время build ломает TextField.
     if (_loaded == null || (!_dirty && settings.toMap().toString() != _loaded!.toMap().toString())) {
@@ -116,7 +124,7 @@ class _TariffsPageState extends State<TariffsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Тарифы и правила',
+                  Text('Тарифы · ${context.watch<AppState>().region.name}',
                       style: TextStyle(
                         color: context.ink, fontSize: 28, fontWeight: FontWeight.w800,
                       )),

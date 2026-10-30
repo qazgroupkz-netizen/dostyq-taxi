@@ -48,6 +48,7 @@ abstract class OrderRepository {
     Geo? fromGeo,
     required String to,
     Geo? toGeo,
+    required String region,
     required String tariff,
     required int price,
     required String payment,
@@ -55,7 +56,7 @@ abstract class OrderRepository {
 
   Stream<TaxiOrder?> watch(String id);
 
-  Stream<List<TaxiOrder>> watchSearching();
+  Stream<List<TaxiOrder>> watchSearching(String region);
 
   /// false — заказ уже забрал другой водитель или клиент отменил.
   Future<bool> accept(String id, {required String driverId, required String driverName});
@@ -74,12 +75,12 @@ abstract class OrderRepository {
 
   Future<void> updateDriverLocation(String uid, Geo geo);
 
-  Future<void> setDriverOnline(String uid, bool online);
+  Future<void> setDriverOnline(String uid, bool online, String region);
 
   Stream<Geo?> watchDriverLocation(String uid);
 
   /// Координаты водителей на линии, обновлявшихся за последние 10 минут.
-  Stream<List<Geo>> watchOnlineDrivers();
+  Stream<List<Geo>> watchOnlineDrivers(String region);
 }
 
 class FirestoreOrderRepository implements OrderRepository {
@@ -119,6 +120,7 @@ class FirestoreOrderRepository implements OrderRepository {
     Geo? fromGeo,
     required String to,
     Geo? toGeo,
+    required String region,
     required String tariff,
     required int price,
     required String payment,
@@ -136,6 +138,7 @@ class FirestoreOrderRepository implements OrderRepository {
         if (toGeo != null) 'lat': toGeo.lat,
         if (toGeo != null) 'lng': toGeo.lng,
       },
+      'region': region,
       'service': tariff,
       'price': price,
       'payment': payment,
@@ -152,8 +155,9 @@ class FirestoreOrderRepository implements OrderRepository {
       _orders.doc(id).snapshots().map((d) => d.exists ? _fromDoc(d) : null);
 
   @override
-  Stream<List<TaxiOrder>> watchSearching() => _orders
+  Stream<List<TaxiOrder>> watchSearching(String region) => _orders
       .where('status', isEqualTo: 'searching')
+      .where('region', isEqualTo: region)
       .snapshots()
       .map((q) {
         final list = q.docs.map(_fromDoc).toList();
@@ -226,8 +230,8 @@ class FirestoreOrderRepository implements OrderRepository {
       }, SetOptions(merge: true));
 
   @override
-  Future<void> setDriverOnline(String uid, bool online) =>
-      _drivers.doc(uid).set({'status': online ? 'online' : 'offline'},
+  Future<void> setDriverOnline(String uid, bool online, String region) =>
+      _drivers.doc(uid).set({'status': online ? 'online' : 'offline', 'region': region},
           SetOptions(merge: true));
 
   @override
@@ -242,8 +246,9 @@ class FirestoreOrderRepository implements OrderRepository {
       });
 
   @override
-  Stream<List<Geo>> watchOnlineDrivers() => _drivers
+  Stream<List<Geo>> watchOnlineDrivers(String region) => _drivers
           .where('status', isEqualTo: 'online')
+          .where('region', isEqualTo: region)
           .snapshots()
           .map((q) {
         final fresh = DateTime.now().subtract(const Duration(minutes: 10));

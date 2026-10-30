@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'data/catalog.dart';
 import 'data/orders.dart';
 import 'data/places.dart';
+import 'data/regions.dart';
 import 'data/settings.dart';
 import 'services/geo_api.dart';
 import 'services/location.dart';
@@ -24,29 +25,89 @@ class AppState extends ChangeNotifier {
       userName = '';
       role = 'client';
       profileLoaded = false;
-      _onlineSub?.cancel();
-      _onlineSub = null;
-      _settingsSub?.cancel();
-      _settingsSub = null;
       _placesSub?.cancel();
       _placesSub = null;
+      _regionsSub?.cancel();
+      _regionsSub = null;
       if (u != null) {
-        _onlineSub = this.orders.watchOnlineDrivers().listen((list) {
-          onlineDrivers = [for (final g in list) LatLng(g.lat, g.lng)];
-          notifyListeners();
-        });
-        _settingsSub = this.catalog.watchSettings().listen((s) {
-          settings = s;
+        _placesSub = this.catalog.watchPlaces().listen((list) {
+          allPlacesFromDb = list;
           notifyListeners();
         }, onError: (_) {});
-        _placesSub = this.catalog.watchPlaces().listen((list) {
-          placesFromDb = list;
+        _regionsSub = this.catalog.watchRegions().listen((list) {
+          regionsFromDb = list;
           notifyListeners();
         }, onError: (_) {});
       }
+      _subscribeRegion();
       notifyListeners();
       if (u != null) reloadProfile();
     });
+  }
+
+  // ─── Район ──────────────────────────────────────────────────────────────
+  List<Region> regionsFromDb = const [];
+  StreamSubscription<List<Region>>? _regionsSub;
+  String regionId = defaultRegionId;
+
+  /// Все районы (для админки), включая выключенные.
+  List<Region> get allRegions => regionsFromDb.isEmpty ? builtInRegions : regionsFromDb;
+
+  /// Районы, которые видит клиент.
+  List<Region> get regions => allRegions.where((r) => r.active).toList();
+
+  Region get region => allRegions.firstWhere(
+        (r) => r.id == regionId,
+        orElse: () => builtInRegions.first,
+      );
+
+  /// Цены, машины на линии и заказы для водителя — только своего района.
+  void _subscribeRegion() {
+    _onlineSub?.cancel();
+    _onlineSub = null;
+    _settingsSub?.cancel();
+    _settingsSub = null;
+    onlineDrivers = [];
+    settings = const TariffSettings();
+    if (uid == null) return;
+    _onlineSub = orders.watchOnlineDrivers(regionId).listen((list) {
+      onlineDrivers = [for (final g in list) LatLng(g.lat, g.lng)];
+      notifyListeners();
+    }, onError: (_) {});
+    _settingsSub = catalog.watchSettings(regionId).listen((s) {
+      settings = s;
+      notifyListeners();
+    }, onError: (_) {});
+  }
+
+  void setRegion(String id, {bool movePickup = true}) {
+    if (id == regionId) return;
+    regionId = id;
+    _subscribeRegion();
+    if (_searchSub != null) {
+      _searchSub!.cancel();
+      _searchSub = null;
+      _syncDriverListening();
+    }
+    selectedPlace = null;
+    pickMode = null;
+    clearDestination();
+    if (movePickup && clientState == ClientState.home) {
+      pickup = region.center;
+      pickupVersion++;
+      resolvePickupAddress();
+    }
+    notifyListeners();
+  }
+
+  /// Клиент открыл приложение — ставим район по его местоположению.
+  void detectRegion(LatLng p) {
+    for (final r in regions) {
+      if (r.contains(p)) {
+        setRegion(r.id, movePickup: false);
+        return;
+      }
+    }
   }
 
   final OrderRepository orders;
@@ -63,10 +124,18 @@ class AppState extends ChangeNotifier {
   TariffSettings settings = const TariffSettings();
   StreamSubscription<TariffSettings>? _settingsSub;
 
-  /// Места из базы; пусто — админ ещё не загрузил, берём встроенный список.
-  List<Place> placesFromDb = const [];
+  /// Места всех районов из базы; пусто — админ ещё не загрузил, берём встроенный список.
+  List<Place> allPlacesFromDb = const [];
   StreamSubscription<List<Place>>? _placesSub;
-  List<Place> get places => placesFromDb.isEmpty ? dostykPlaces : placesFromDb;
+
+  /// Места текущего района из базы.
+  List<Place> get placesFromDb =>
+      allPlacesFromDb.where((p) => p.region == regionId).toList();
+
+  List<Place> get places {
+    if (allPlacesFromDb.isNotEmpty) return placesFromDb;
+    return regionId == defaultRegionId ? dostykPlaces : const [];
+  }
 
   Future<void> reloadProfile() async {
     final id = uid;
@@ -366,6 +435,7 @@ class AppState extends ChangeNotifier {
         toGeo: destPoint == null
             ? null
             : (lat: destPoint!.latitude, lng: destPoint!.longitude),
+        region: regionId,
         tariff: tariff.name,
         price: tariffPriceInt,
         payment: paymentMethod,
@@ -476,19 +546,19 @@ class AppState extends ChangeNotifier {
   void _syncDriverListening() {
     final listen = isDriverMode && isOnline;
     if (listen && _searchSub == null) {
-      _searchSub = orders.watchSearching().listen((list) {
+      _searchSub = orders.watchSearching(regionId).listen((list) {
         _searching = list;
         notifyListeners();
       });
       _startGps();
-      if (uid != null) orders.setDriverOnline(uid!, true);
+      if (uid != null) orders.setDriverOnline(uid!, true, regionId);
     } else if (!listen && _searchSub != null) {
       _searchSub!.cancel();
       _searchSub = null;
       _searching = [];
       _gpsSub?.cancel();
       _gpsSub = null;
-      if (uid != null) orders.setDriverOnline(uid!, false);
+      if (uid != null) orders.setDriverOnline(uid!, false, regionId);
     }
   }
 
@@ -653,6 +723,7 @@ class AppState extends ChangeNotifier {
     _onlineSub?.cancel();
     _settingsSub?.cancel();
     _placesSub?.cancel();
+    _regionsSub?.cancel();
     super.dispose();
   }
 

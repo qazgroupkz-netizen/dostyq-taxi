@@ -39,6 +39,9 @@ class Place {
   /// Координаты примерные — нужно уточнить на месте.
   final bool approx;
 
+  /// id района (см. regions.dart).
+  final String region;
+
   const Place({
     required this.id,
     required this.name,
@@ -49,6 +52,7 @@ class Place {
     this.chip = false,
     this.group,
     this.approx = false,
+    this.region = 'dostyk',
   });
 
   PlaceCategory get _cat => placeCategories[category] ?? placeCategories['other']!;
@@ -57,7 +61,7 @@ class Place {
 
   Place copyWith({
     String? name, String? sub, String? category, LatLng? point,
-    List<String>? synonyms, bool? chip, String? group, bool? approx,
+    List<String>? synonyms, bool? chip, String? group, bool? approx, String? region,
   }) =>
       Place(
         id: id,
@@ -69,6 +73,7 @@ class Place {
         chip: chip ?? this.chip,
         group: group ?? this.group,
         approx: approx ?? this.approx,
+        region: region ?? this.region,
       );
 }
 

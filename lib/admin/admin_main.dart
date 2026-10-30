@@ -7,6 +7,7 @@ import '../screens/auth_screen.dart';
 import '../state.dart';
 import '../theme.dart';
 import 'places_page.dart';
+import 'regions_page.dart';
 import 'tariffs_page.dart';
 
 Future<void> main() async {
@@ -116,6 +117,7 @@ class _AdminHomeState extends State<AdminHome> {
   static const _pages = [
     (Icons.tune_rounded, 'Тарифы'),
     (Icons.place_outlined, 'Места'),
+    (Icons.location_city_rounded, 'Районы'),
   ];
 
   @override
@@ -123,7 +125,8 @@ class _AdminHomeState extends State<AdminHome> {
     final wide = MediaQuery.of(context).size.width >= 900;
     final body = switch (_page) {
       0 => const TariffsPage(),
-      _ => const PlacesPage(),
+      1 => const PlacesPage(),
+      _ => const RegionsPage(),
     };
     final name = context.select<AppState, String>((s) => s.userName);
 
@@ -133,6 +136,7 @@ class _AdminHomeState extends State<AdminHome> {
         appBar: AppBar(
           title: Text(_pages[_page].$2),
           actions: [
+            const _RegionPicker(),
             IconButton(
               tooltip: 'Выйти',
               icon: const Icon(Icons.logout_rounded),
@@ -196,9 +200,54 @@ class _AdminHomeState extends State<AdminHome> {
             ],
           ),
           const VerticalDivider(width: 1),
-          Expanded(child: body),
+          Expanded(
+            child: Column(
+              children: [
+                Container(
+                  height: 56,
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  color: context.paper,
+                  child: Row(
+                    children: [
+                      Text('Район:', style: TextStyle(color: context.muted, fontSize: 14)),
+                      const SizedBox(width: 10),
+                      const _RegionPicker(),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(child: body),
+              ],
+            ),
+          ),
         ],
       ),
+    );
+  }
+}
+
+/// Район, с которым сейчас работает админ: цены и места показываются для него.
+class _RegionPicker extends StatelessWidget {
+  const _RegionPicker();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    return DropdownButton<String>(
+      value: state.regionId,
+      underline: const SizedBox.shrink(),
+      borderRadius: BorderRadius.circular(12),
+      items: [
+        for (final r in state.allRegions)
+          DropdownMenuItem(
+            value: r.id,
+            child: Text(r.active ? r.name : '${r.name} (выкл.)',
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+          ),
+      ],
+      onChanged: (id) {
+        if (id != null) state.setRegion(id, movePickup: false);
+      },
     );
   }
 }

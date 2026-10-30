@@ -53,7 +53,7 @@ class _DriverBody extends StatelessWidget {
           TaxiMap(
             interactive: false,
             follow: state.myLocation,
-            initialCenter: state.myLocation ?? dostykCenter,
+            initialCenter: state.myLocation ?? state.region.center,
             me: state.driverOrder == null ? state.myLocation : null,
             car: state.driverOrder == null ? null : state.myLocation,
             pickup: state.driverOrder?.fromLat == null
@@ -82,9 +82,7 @@ class _DriverBody extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            state.isOnline
-                                ? 'На линии'
-                                : 'Не в сети',
+                            '${state.isOnline ? 'На линии' : 'Не в сети'} · ${state.region.name}',
                             style: const TextStyle(
                               color: Color(0xFFA3ABB6),
                               fontSize: 13, fontWeight: FontWeight.w500,
@@ -349,7 +347,7 @@ class _ManualPlaceScreenState extends State<_ManualPlaceScreen> {
             controller: _map,
             centerPin: true,
             pinLabel: 'Машина здесь',
-            initialCenter: state.myLocation ?? dostykCenter,
+            initialCenter: state.myLocation ?? state.region.center,
             places: state.places,
           ),
           Positioned(

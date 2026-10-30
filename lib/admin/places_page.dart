@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart' show MapController;
 import 'package:latlong2/latlong.dart' show Distance;
 import 'package:provider/provider.dart';
 import '../data/places.dart';
+import '../data/regions.dart';
 import '../state.dart';
 import '../theme.dart';
 import '../widgets/taxi_map.dart';
@@ -27,6 +28,7 @@ class _PlacesPageState extends State<PlacesPage> {
   bool _chip = false;
   bool _approx = false;
   bool _busy = false;
+  String? _shownRegion;
 
   @override
   void dispose() {
@@ -55,7 +57,8 @@ class _PlacesPageState extends State<PlacesPage> {
     final id = await context.read<AppState>().catalog.newPlaceId();
     if (!mounted) return;
     _open(
-      Place(id: id, name: '', sub: '', category: 'shop', point: _map.camera.center),
+      Place(id: id, name: '', sub: '', category: 'shop', point: _map.camera.center,
+          region: context.read<AppState>().regionId),
       isNew: true,
     );
   }
@@ -147,7 +150,19 @@ class _PlacesPageState extends State<PlacesPage> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final fromDb = state.placesFromDb.isNotEmpty;
+    // Встроенный список есть только у Достыка; другие районы заполняются с нуля.
+    final showImport = state.allPlacesFromDb.isEmpty && state.regionId == defaultRegionId;
+    final fromDb = !showImport;
+    if (_shownRegion != state.regionId) {
+      final first = _shownRegion == null;
+      _shownRegion = state.regionId;
+      if (!first) {
+        _edit = null;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _map.move(state.region.center, 15);
+        });
+      }
+    }
     final q = _search.text.trim();
     final list = q.isEmpty ? state.places : searchPlaces(q, state.places);
     final wide = MediaQuery.of(context).size.width >= 1100;
@@ -156,6 +171,7 @@ class _PlacesPageState extends State<PlacesPage> {
       borderRadius: BorderRadius.circular(20),
       child: TaxiMap(
         controller: _map,
+        initialCenter: state.region.center,
         centerPin: _edit != null,
         pinLabel: _edit == null
             ? null
@@ -173,7 +189,7 @@ class _PlacesPageState extends State<PlacesPage> {
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!fromDb) ...[
+          if (showImport) ...[
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(

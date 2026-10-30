@@ -38,8 +38,10 @@ class _ClientScreenState extends State<ClientScreen> {
       state.resolvePickupAddress();
       final p = await state.locateMe();
       if (!mounted || p == null) return;
-      // Сервис работает только в Достыке: далеко — оставляем центр посёлка.
-      if (Distance()(p, dostykCenter) < 30000) _map.move(p, 16);
+      // Клиент в одном из районов — переключаемся на него и ставим подачу к нему.
+      // Далеко от всех районов — оставляем центр текущего.
+      state.detectRegion(p);
+      if (state.region.contains(p)) _map.move(p, 16);
     });
   }
 
@@ -66,6 +68,50 @@ class _ClientScreenState extends State<ClientScreen> {
     _movedPickup = state.pickupVersion;
     if (state.destPoint != null) return;
     _afterFrame(() => _map.move(state.pickup, _map.camera.zoom < 15 ? 16 : _map.camera.zoom));
+  }
+
+  void _chooseRegion(BuildContext context) {
+    final state = context.read<AppState>();
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: ctx.paper,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: EdgeInsets.fromLTRB(0, 16, 0, MediaQuery.of(ctx).padding.bottom + 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Text('Где вы?',
+                  style: TextStyle(
+                    color: ctx.ink, fontSize: 20, fontWeight: FontWeight.w800,
+                  )),
+            ),
+            for (final r in state.regions)
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                leading: Icon(Icons.location_city_rounded, color: ctx.taxi),
+                title: Text(r.name,
+                    style: TextStyle(
+                      color: ctx.ink, fontSize: 17, fontWeight: FontWeight.w600,
+                    )),
+                trailing: r.id == state.regionId
+                    ? Icon(Icons.check_rounded, color: ctx.taxi)
+                    : null,
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  state.setRegion(r.id);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   static String _hm(DateTime t) =>
@@ -172,6 +218,7 @@ class _ClientScreenState extends State<ClientScreen> {
           // Карта на весь экран
           TaxiMap(
             controller: _map,
+            initialCenter: state.region.center,
             centerPin: pickupInCenter || picking,
             pinLabel: pinLabel,
             pinCaption: caption,
@@ -201,13 +248,17 @@ class _ClientScreenState extends State<ClientScreen> {
             ),
           ),
 
-          // Бренд-чип по центру
+          // Бренд-чип по центру; нажатие — выбор района
           Positioned(
             top: MediaQuery.of(context).padding.top + 14,
             left: 0, right: 0,
             child: Center(
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(6, 6, 14, 6),
+              child: GestureDetector(
+                onTap: isHome && state.regions.length > 1
+                    ? () => _chooseRegion(context)
+                    : null,
+                child: Container(
+                padding: const EdgeInsets.fromLTRB(6, 6, 12, 6),
                 decoration: BoxDecoration(
                   color: context.paper,
                   borderRadius: BorderRadius.circular(999),
@@ -233,7 +284,9 @@ class _ClientScreenState extends State<ClientScreen> {
                     ),
                     const SizedBox(width: 9),
                     Text(
-                      'DOSTYQ TAXI',
+                      state.regions.length > 1
+                          ? state.region.name
+                          : 'DOSTYQ TAXI',
                       style: TextStyle(
                         color: context.ink,
                         fontSize: 14,
@@ -241,8 +294,12 @@ class _ClientScreenState extends State<ClientScreen> {
                         letterSpacing: -.01 * 14,
                       ),
                     ),
+                    if (isHome && state.regions.length > 1)
+                      Icon(Icons.keyboard_arrow_down_rounded,
+                          color: context.muted, size: 20),
                   ],
                 ),
+              ),
               ),
             ),
           ),
