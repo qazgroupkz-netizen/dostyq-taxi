@@ -10,6 +10,8 @@ import 'package:latlong2/latlong.dart' show Distance, LatLng;
 import '../widgets/ornament_icon.dart';
 import '../widgets/taxi_map.dart';
 import '../widgets/car_svgs.dart';
+import '../data/drivers.dart';
+import 'driver_apply_screen.dart';
 import 'search_screen.dart';
 import 'trip_screen.dart';
 
@@ -925,12 +927,12 @@ class _ComingPanelState extends State<_ComingPanel> {
                           fontSize: 24, fontWeight: FontWeight.w800,
                         )),
                     const SizedBox(height: 4),
-                    Text(mockDriver.car,
+                    Text(context.watch<AppState>().activeOrder?.driverCar ?? '',
                         style: TextStyle(color: context.muted, fontSize: 14)),
                   ],
                 ),
               ),
-              _Plate(plate: mockDriver.plate),
+              _Plate(plate: context.watch<AppState>().activeOrder?.driverPlate ?? '—'),
             ],
           ),
         ),
@@ -1004,12 +1006,12 @@ class _ArrivedPanelState extends State<_ArrivedPanel> {
                           fontSize: 24, fontWeight: FontWeight.w800,
                         )),
                     const SizedBox(height: 4),
-                    Text(mockDriver.car,
+                    Text(context.watch<AppState>().activeOrder?.driverCar ?? '',
                         style: TextStyle(color: context.muted, fontSize: 14)),
                   ],
                 ),
               ),
-              _Plate(plate: mockDriver.plate),
+              _Plate(plate: context.watch<AppState>().activeOrder?.driverPlate ?? '—'),
             ],
           ),
         ),
@@ -1104,7 +1106,7 @@ class _RidePanelState extends State<_RidePanel> {
                   ],
                 ),
               ),
-              _Plate(plate: mockDriver.plate),
+              _Plate(plate: context.watch<AppState>().activeOrder?.driverPlate ?? '—'),
             ],
           ),
         ),
@@ -1384,7 +1386,8 @@ class _DriverRow extends StatelessWidget {
                       fontSize: 16, fontWeight: FontWeight.w700,
                     )),
                 Text(
-                    '${mockDriver.trips} поездок · ${mockDriver.car}',
+                    [context.watch<AppState>().activeOrder?.driverCar, context.watch<AppState>().activeOrder?.driverPlate]
+                        .whereType<String>().where((s) => s.isNotEmpty).join(' · '),
                     style: TextStyle(color: context.muted, fontSize: 13)),
               ],
             ),
@@ -1818,11 +1821,23 @@ class _SideDrawer extends StatelessWidget {
                 ),
                 _DrawerItem(
                   icon: Icons.drive_eta_outlined,
-                  label: 'Режим водителя',
-                  badge: 'демо',
+                  label: state.myDriver?.approval == Approval.approved
+                      ? 'Режим водителя'
+                      : 'Стать водителем',
+                  badge: switch (state.myDriver?.approval) {
+                    Approval.pending => 'на проверке',
+                    Approval.rejected => 'отклонена',
+                    _ => null,
+                  },
                   onTap: () {
-                    state.setDriverMode(!state.isDriverMode);
                     onClose();
+                    if (state.myDriver?.approval == Approval.approved) {
+                      state.setDriverMode(true);
+                    } else {
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const DriverApplyScreen(),
+                      ));
+                    }
                   },
                 ),
                 _DrawerItem(

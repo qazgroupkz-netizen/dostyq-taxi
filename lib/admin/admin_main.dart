@@ -6,6 +6,7 @@ import '../firebase_options.dart';
 import '../screens/auth_screen.dart';
 import '../state.dart';
 import '../theme.dart';
+import 'drivers_page.dart';
 import 'places_page.dart';
 import 'regions_page.dart';
 import 'tariffs_page.dart';
@@ -115,6 +116,7 @@ class _AdminHomeState extends State<AdminHome> {
   int _page = 0;
 
   static const _pages = [
+    (Icons.badge_outlined, 'Водители'),
     (Icons.tune_rounded, 'Тарифы'),
     (Icons.place_outlined, 'Места'),
     (Icons.location_city_rounded, 'Районы'),
@@ -124,8 +126,9 @@ class _AdminHomeState extends State<AdminHome> {
   Widget build(BuildContext context) {
     final wide = MediaQuery.of(context).size.width >= 900;
     final body = switch (_page) {
-      0 => const TariffsPage(),
-      1 => const PlacesPage(),
+      0 => const DriversPage(),
+      1 => const TariffsPage(),
+      2 => const PlacesPage(),
       _ => const RegionsPage(),
     };
     final name = context.select<AppState, String>((s) => s.userName);

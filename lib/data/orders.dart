@@ -14,6 +14,8 @@ class TaxiOrder {
   final String payment;
   final String? driverId;
   final String? driverName;
+  final String? driverCar;
+  final String? driverPlate;
   final bool clientComingOut;
   final List<String> declinedBy;
   final DateTime? createdAt;
@@ -32,6 +34,8 @@ class TaxiOrder {
     required this.payment,
     this.driverId,
     this.driverName,
+    this.driverCar,
+    this.driverPlate,
     this.clientComingOut = false,
     this.declinedBy = const [],
     this.createdAt,
@@ -59,7 +63,8 @@ abstract class OrderRepository {
   Stream<List<TaxiOrder>> watchSearching(String region);
 
   /// false — заказ уже забрал другой водитель или клиент отменил.
-  Future<bool> accept(String id, {required String driverId, required String driverName});
+  Future<bool> accept(String id,
+      {required String driverId, required String driverName, String? car, String? plate});
 
   Future<void> setStatus(String id, String status);
 
@@ -106,6 +111,8 @@ class FirestoreOrderRepository implements OrderRepository {
       payment: m['payment'] as String? ?? 'cash',
       driverId: m['driverId'] as String?,
       driverName: m['driverName'] as String?,
+      driverCar: m['driverCar'] as String?,
+      driverPlate: m['driverPlate'] as String?,
       clientComingOut: m['clientComingOut'] as bool? ?? false,
       declinedBy: (m['declinedBy'] as List?)?.whereType<String>().toList() ?? const [],
       createdAt: (m['createdAt'] as Timestamp?)?.toDate(),
@@ -168,7 +175,7 @@ class FirestoreOrderRepository implements OrderRepository {
 
   @override
   Future<bool> accept(String id,
-      {required String driverId, required String driverName}) {
+      {required String driverId, required String driverName, String? car, String? plate}) {
     final ref = _orders.doc(id);
     return _db.runTransaction((tx) async {
       final snap = await tx.get(ref);
@@ -177,6 +184,8 @@ class FirestoreOrderRepository implements OrderRepository {
         'status': 'accepted',
         'driverId': driverId,
         'driverName': driverName,
+        if (car != null) 'driverCar': car,
+        if (plate != null) 'driverPlate': plate,
         'acceptedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -195,6 +204,8 @@ class FirestoreOrderRepository implements OrderRepository {
         'status': 'searching',
         'driverId': FieldValue.delete(),
         'driverName': FieldValue.delete(),
+        'driverCar': FieldValue.delete(),
+        'driverPlate': FieldValue.delete(),
         'clientComingOut': false,
         'declinedBy': FieldValue.arrayUnion([driverId]),
         'updatedAt': FieldValue.serverTimestamp(),

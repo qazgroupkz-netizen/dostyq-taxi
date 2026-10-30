@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:latlong2/latlong.dart';
 import 'data/catalog.dart';
+import 'data/drivers.dart';
 import 'data/orders.dart';
 import 'data/places.dart';
 import 'data/regions.dart';
@@ -17,9 +18,13 @@ enum DriverState { offline, waiting, offer, active }
 enum Tariff { local, border, whole, delivery }
 
 class AppState extends ChangeNotifier {
-  AppState({OrderRepository? orders, CatalogRepository? catalog})
-      : orders = orders ?? FirestoreOrderRepository(),
-        catalog = catalog ?? FirestoreCatalogRepository() {
+  AppState({
+    OrderRepository? orders,
+    CatalogRepository? catalog,
+    DriverRepository? drivers,
+  })  : orders = orders ?? FirestoreOrderRepository(),
+        catalog = catalog ?? FirestoreCatalogRepository(),
+        drivers = drivers ?? FirestoreDriverRepository() {
     _authSub = FirebaseAuth.instance.authStateChanges().listen((u) {
       uid = u?.uid;
       userName = '';
@@ -29,7 +34,15 @@ class AppState extends ChangeNotifier {
       _placesSub = null;
       _regionsSub?.cancel();
       _regionsSub = null;
+      _myDriverSub?.cancel();
+      _myDriverSub = null;
+      myDriver = null;
       if (u != null) {
+        _myDriverSub = this.drivers.watchProfile(u.uid).listen((p) {
+          myDriver = p;
+          _syncDriverListening();
+          notifyListeners();
+        }, onError: (_) {});
         _placesSub = this.catalog.watchPlaces().listen((list) {
           allPlacesFromDb = list;
           notifyListeners();
@@ -112,6 +125,13 @@ class AppState extends ChangeNotifier {
 
   final OrderRepository orders;
   final CatalogRepository catalog;
+  final DriverRepository drivers;
+
+  /// Анкета водителя этого пользователя (пустая, если не подавал).
+  DriverProfile? myDriver;
+  StreamSubscription<DriverProfile>? _myDriverSub;
+
+  bool get driverCanWork => myDriver?.canWork ?? false;
   StreamSubscription<User?>? _authSub;
   String? uid;
   String userName = '';
@@ -177,6 +197,11 @@ class AppState extends ChangeNotifier {
   // ─── Сеттеры ────────────────────────────────────────────────────────────
   void setDriverMode(bool v) {
     isDriverMode = v;
+    // Водитель работает в районе из своей анкеты.
+    final r = myDriver?.region;
+    if (v && r != null && r != regionId && allRegions.any((x) => x.id == r)) {
+      setRegion(r, movePickup: false);
+    }
     _syncDriverListening();
     notifyListeners();
   }
@@ -544,7 +569,7 @@ class AppState extends ChangeNotifier {
   DateTime _lastGpsSent = DateTime.fromMillisecondsSinceEpoch(0);
 
   void _syncDriverListening() {
-    final listen = isDriverMode && isOnline;
+    final listen = isDriverMode && isOnline && driverCanWork;
     if (listen && _searchSub == null) {
       _searchSub = orders.watchSearching(regionId).listen((list) {
         _searching = list;
@@ -670,7 +695,10 @@ class AppState extends ChangeNotifier {
   Future<void> acceptOffer(TaxiOrder o) async {
     if (uid == null) return;
     final ok = await orders.accept(o.id,
-        driverId: uid!, driverName: await _myName());
+        driverId: uid!,
+        driverName: myDriver?.name.isNotEmpty == true ? myDriver!.name : await _myName(),
+        car: myDriver?.car,
+        plate: myDriver?.plate);
     if (!ok) {
       skipOffer(o.id);
       return;
@@ -724,6 +752,7 @@ class AppState extends ChangeNotifier {
     _settingsSub?.cancel();
     _placesSub?.cancel();
     _regionsSub?.cancel();
+    _myDriverSub?.cancel();
     super.dispose();
   }
 

@@ -146,7 +146,7 @@ class _DriverBody extends StatelessWidget {
                         ],
 
                         // Предупреждение о подписке
-                        _SubWarning(),
+                        const _SubWarning(),
 
                         const SizedBox(height: 16),
 
@@ -158,7 +158,7 @@ class _DriverBody extends StatelessWidget {
                         // Активный заказ или ожидание
                         if (state.driverOrder != null)
                           _ActiveRideCard(order: state.driverOrder!)
-                        else if (!state.isOnline)
+                        else if (!state.isOnline || !state.driverCanWork)
                           _OfflineCard()
                         else if (state.offer != null)
                           _OfferCard(
@@ -406,59 +406,78 @@ class _ManualPlaceScreenState extends State<_ManualPlaceScreen> {
   }
 }
 
-// ─── Предупреждение о подписке ──────────────────────────────────────────────
+// ─── Подписка: напоминание за 3 дня, за 1 день, в день окончания и после ────
 class _SubWarning extends StatelessWidget {
+  const _SubWarning();
+
   @override
   Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final p = state.myDriver;
+    final days = p?.subscriptionDaysLeft;
+    if (p == null || days == null || days > 3) return const SizedBox.shrink();
+
+    final expired = !p.subscriptionActive;
+    final name = p.name.isEmpty ? '' : '${p.name.split(' ').first}, ';
+    final title = expired
+        ? 'Подписка закончилась'
+        : days == 0
+            ? 'Подписка заканчивается сегодня'
+            : 'Подписка заканчивается';
+    final when = days == 1 ? 'завтра' : 'через $days дня';
+    final s = state.settings;
+    final pay = 'Оплатите ${formatPrice(s.subscriptionWeek)} в неделю или '
+        '${formatPrice(s.subscriptionMonth)} в месяц через Kaspi на счёт ИП '
+        'и сообщите администратору.';
+    final text = expired
+        ? '${name}заказы не приходят, пока подписка не продлена. $pay'
+        : days == 0
+            ? '${name}сегодня последний день подписки. $pay'
+            : '${name}ваша подписка заканчивается $when. $pay';
+    final bad = expired || days == 0;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF3A2A0B), Color(0xFF2A1F0A)],
+          colors: bad
+              ? const [Color(0xFF3A1416), Color(0xFF2A0F10)]
+              : const [Color(0xFF3A2A0B), Color(0xFF2A1F0A)],
         ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFF6B4E14)),
+        border: Border.all(color: bad ? const Color(0xFF7A2A2E) : const Color(0xFF6B4E14)),
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.warning_amber_rounded,
-                  color: Color(0xFFFFD98A), size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text('Подписка заканчивается',
-                        style: TextStyle(
-                          color: Color(0xFFFFD98A),
-                          fontSize: 15, fontWeight: FontWeight.w700,
-                        )),
-                    SizedBox(height: 2),
-                    Text(
-                      'Ерлан, ваша подписка заканчивается через 2 дня. '
-                      'Продлите, чтобы заказы не прекращались.',
-                      style: TextStyle(
-                        color: Color(0xFFE8D2A6),
-                        fontSize: 13, height: 1.4,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          Icon(Icons.warning_amber_rounded,
+              color: bad ? const Color(0xFFFF8A8E) : const Color(0xFFFFD98A), size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: TextStyle(
+                      color: bad ? const Color(0xFFFF8A8E) : const Color(0xFFFFD98A),
+                      fontSize: 15, fontWeight: FontWeight.w700,
+                    )),
+                const SizedBox(height: 2),
+                Text(text,
+                    style: const TextStyle(
+                      color: Color(0xFFE8D2A6), fontSize: 13, height: 1.4,
+                    )),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 }
-
 // ─── Карточка заработка ──────────────────────────────────────────────────────
 class _EarningsCard extends StatelessWidget {
   @override
