@@ -5,6 +5,7 @@ import 'dart:async';
 import '../data/orders.dart';
 import '../data/places.dart';
 import '../config.dart';
+import '../i18n.dart';
 import '../state.dart';
 import '../theme.dart';
 import 'package:flutter_map/flutter_map.dart' show MapController, CameraFit;
@@ -91,7 +92,7 @@ class _ClientScreenState extends State<ClientScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-              child: Text('Где вы?',
+              child: Text(tr('Где вы?'),
                   style: TextStyle(
                     color: ctx.ink, fontSize: 20, fontWeight: FontWeight.w800,
                   )),
@@ -125,9 +126,9 @@ class _ClientScreenState extends State<ClientScreen> {
     final p = await state.locateMe();
     if (!mounted) return;
     if (p == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Не удалось определить местоположение. '
-            'Разрешите доступ к геолокации в настройках браузера.'),
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr('Не удалось определить местоположение. '
+            'Разрешите доступ к геолокации в настройках браузера.')),
       ));
       return;
     }
@@ -174,17 +175,17 @@ class _ClientScreenState extends State<ClientScreen> {
     switch (state.clientState) {
       case ClientState.home:
         final eta = state.pickupEtaMinutes;
-        pinLabel = picking ? null : eta == null ? 'Нет машин рядом' : '~$eta мин';
+        pinLabel = picking ? null : eta == null ? tr('Нет машин рядом') : '~$eta мин';
       case ClientState.seek:
-        pinLabel = 'Ищем машину';
+        pinLabel = tr('Ищем машину');
       case ClientState.coming:
         final d = state.driverDistanceMeters;
         final eta = state.etaMinutes;
         pinLabel = d != null && d < 100
-            ? 'Прибывает'
-            : eta != null ? '~$eta мин' : 'Водитель едет';
+            ? tr('Прибывает')
+            : eta != null ? '~$eta мин' : tr('Водитель едет');
       case ClientState.arrived:
-        pinLabel = 'Машина на месте';
+        pinLabel = tr('Машина на месте');
       case ClientState.ride:
       case ClientState.rate:
         pinLabel = null;
@@ -206,12 +207,12 @@ class _ClientScreenState extends State<ClientScreen> {
     String? caption;
     if (pickupInCenter) {
       caption = state.pickupResolving
-          ? 'Определяем адрес…'
+          ? tr('Определяем адрес…')
           : state.pickupNear == null || state.fromAddress.contains(state.pickupNear!)
               ? state.fromAddress
               : '${state.fromAddress} · ${state.pickupNear}';
     } else if (picking) {
-      caption = state.pickAddress ?? (state.pickPoint == null ? null : 'Определяем адрес…');
+      caption = state.pickAddress ?? (state.pickPoint == null ? null : tr('Определяем адрес…'));
     }
 
     return Scaffold(
@@ -233,7 +234,7 @@ class _ClientScreenState extends State<ClientScreen> {
                 ? null
                 : state.pickup,
             dest: showDest ? state.destPoint : null,
-            destLabel: arrival == null ? null : 'Приедете в ${_hm(arrival)}',
+            destLabel: arrival == null ? null : trf('Приедете в {time}', {'time': _hm(arrival)}),
             route: showDest ? state.route?.points : null,
             car: showCar ? state.driverLocation : null,
             idleCars: isHome ? state.onlineDrivers : const [],
@@ -528,7 +529,7 @@ class _HomePanel extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  state.pickupResolving ? 'Определяем адрес…' : state.fromAddress,
+                  state.pickupResolving ? tr('Определяем адрес…') : state.fromAddress,
                   style: TextStyle(
                     color: context.ink2,
                     fontSize: 14,
@@ -543,8 +544,8 @@ class _HomePanel extends StatelessWidget {
                   foregroundColor: context.accent,
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                 ),
-                child: const Text('Изменить',
-                    style: TextStyle(
+                child: Text(tr('Изменить'),
+                    style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                     )),
@@ -617,7 +618,7 @@ class _HomePanel extends StatelessWidget {
               Expanded(
                 child: _OptButton(
                   icon: Icons.notes_rounded,
-                  label: 'Пожелания',
+                  label: tr('Пожелания'),
                   onTap: () => _showWishSheet(context),
                 ),
               ),
@@ -638,8 +639,10 @@ class _HomePanel extends StatelessWidget {
     // Рейсы Ушарал
     if (state.tariff == Tariff.border) {
       return _CtaButton(
-        label: 'Выбрать рейс',
-        sub: '${state.intercityMany ? 'от ' : ''}${formatPrice(state.intercityMinSeat)} / место',
+        label: tr('Выбрать рейс'),
+        sub: state.intercityMany
+            ? trf('от {price} / место', {'price': formatPrice(state.intercityMinSeat)})
+            : trf('{price} / место', {'price': formatPrice(state.intercityMinSeat)}),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const TripScreen()),
         ),
@@ -648,8 +651,10 @@ class _HomePanel extends StatelessWidget {
     // Вся машина
     if (state.tariff == Tariff.whole) {
       return _CtaButton(
-        label: 'Выбрать время',
-        sub: '${state.intercityMany ? 'от ' : ''}${formatPrice(state.intercityMinWhole)}',
+        label: tr('Выбрать время'),
+        sub: state.intercityMany
+            ? trf('от {price}', {'price': formatPrice(state.intercityMinWhole)})
+            : formatPrice(state.intercityMinWhole),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
               builder: (_) => const TripScreen(wholeCarMode: true)),
@@ -658,9 +663,9 @@ class _HomePanel extends StatelessWidget {
     }
     final needsWhat = state.tariff == Tariff.delivery || state.tariff == Tariff.cargo;
     final label = switch (state.tariff) {
-      Tariff.delivery => state.destination.isEmpty ? 'Куда привезти?' : 'Оформить доставку',
-      Tariff.cargo => state.destination.isEmpty ? 'Куда везём?' : 'Заказать грузовое',
-      _ => state.destination.isEmpty ? 'Куда едем?' : 'Заказать',
+      Tariff.delivery => state.destination.isEmpty ? tr('Куда привезти?') : tr('Оформить доставку'),
+      Tariff.cargo => state.destination.isEmpty ? tr('Куда везём?') : tr('Заказать грузовое'),
+      _ => state.destination.isEmpty ? tr('Куда едем?') : tr('Заказать'),
     };
     return _CtaButton(
       label: label,
@@ -683,7 +688,7 @@ class _HomePanel extends StatelessWidget {
         }
         state.placeOrder().catchError((Object e) {
           messenger.showSnackBar(SnackBar(
-            content: Text('Не удалось отправить заказ: $e'),
+            content: Text(trf('Не удалось отправить заказ: {e}', {'e': e})),
             duration: const Duration(seconds: 6),
           ));
         });
@@ -762,7 +767,7 @@ class _CollapsedHomePanel extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      Text('Подробнее',
+                      Text(tr('Подробнее'),
                           style: TextStyle(
                             color: context.muted,
                             fontSize: 13, fontWeight: FontWeight.w600,
@@ -856,7 +861,7 @@ class _SeekPanelState extends State<_SeekPanel>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(cargo ? 'Ждём цены водителей' : 'Ищем машину',
+                    Text(cargo ? tr('Ждём цены водителей') : tr('Ищем машину'),
                         style: TextStyle(
                           color: context.ink,
                           fontSize: 22, fontWeight: FontWeight.w800,
@@ -865,14 +870,14 @@ class _SeekPanelState extends State<_SeekPanel>
                     Text(cargo
                             ? (bids.isEmpty
                                 ? (order?.clientPrice != null
-                                    ? 'Ваша цена ${formatPrice(order!.clientPrice!)}. Грузовые машины смотрят заказ'
-                                    : 'Грузовые машины смотрят заказ и предложат цену')
-                                : 'Выберите подходящее предложение')
+                                    ? trf('Ваша цена {price}. Грузовые машины смотрят заказ', {'price': formatPrice(order!.clientPrice!)})
+                                    : tr('Грузовые машины смотрят заказ и предложат цену'))
+                                : tr('Выберите подходящее предложение'))
                             : noCars
-                            ? 'Свободных машин пока нет. Заказ передан менеджеру — он подберёт машину'
+                            ? tr('Свободных машин пока нет. Заказ передан менеджеру — он подберёт машину')
                             : declined
-                                ? 'Водитель отказался. Ищем другого'
-                                : 'Предлагаем заказ ближайшему водителю',
+                                ? tr('Водитель отказался. Ищем другого')
+                                : tr('Предлагаем заказ ближайшему водителю'),
                         style: TextStyle(color: context.muted, fontSize: 14)),
                   ],
                 ),
@@ -909,7 +914,7 @@ class _SeekPanelState extends State<_SeekPanel>
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: _CtaButton(
-            label: 'Отменить заказ',
+            label: tr('Отменить заказ'),
             soft: true,
             onTap: () => state.cancelOrder(),
           ),
@@ -945,7 +950,7 @@ class _BidTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(bid.driverName.isEmpty ? 'Водитель' : bid.driverName,
+                Text(bid.driverName.isEmpty ? tr('Водитель') : bid.driverName,
                     style: TextStyle(color: context.ink, fontSize: 15.5, fontWeight: FontWeight.w700)),
                 Text([bid.car, bid.plate].where((s) => s.isNotEmpty).join(' · '),
                     maxLines: 1,
@@ -962,8 +967,8 @@ class _BidTile extends StatelessWidget {
               final messenger = ScaffoldMessenger.of(context);
               final ok = await state.chooseBid(bid);
               if (!ok) {
-                messenger.showSnackBar(const SnackBar(
-                  content: Text('Это предложение уже недоступно'),
+                messenger.showSnackBar(SnackBar(
+                  content: Text(tr('Это предложение уже недоступно')),
                 ));
               }
             },
@@ -972,7 +977,7 @@ class _BidTile extends StatelessWidget {
               foregroundColor: context.onTaxi,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Text('Выбрать'),
+            child: Text(tr('Выбрать')),
           ),
         ],
       ),
@@ -1039,7 +1044,7 @@ class _ComingPanelState extends State<_ComingPanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(eta == null ? 'Водитель едет к вам' : 'Приедет через $eta мин',
+                    Text(eta == null ? tr('Водитель едет к вам') : trf('Приедет через {eta} мин', {'eta': eta}),
                         style: TextStyle(
                           color: context.ink,
                           fontSize: 24, fontWeight: FontWeight.w800,
@@ -1118,7 +1123,7 @@ class _ArrivedPanelState extends State<_ArrivedPanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Машина на месте',
+                    Text(tr('Машина на месте'),
                         style: TextStyle(
                           color: context.ink,
                           fontSize: 24, fontWeight: FontWeight.w800,
@@ -1147,7 +1152,7 @@ class _ArrivedPanelState extends State<_ArrivedPanel> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Бесплатное ожидание',
+                Text(tr('Бесплатное ожидание'),
                     style: TextStyle(
                       color: context.okInk,
                       fontSize: 14, fontWeight: FontWeight.w600,
@@ -1167,7 +1172,7 @@ class _ArrivedPanelState extends State<_ArrivedPanel> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: _CtaButton(
-            label: comingOut ? 'Водитель знает, что вы выходите' : 'Выхожу',
+            label: comingOut ? tr('Водитель знает, что вы выходите') : tr('Выхожу'),
             soft: comingOut,
             onTap: () => state.markComingOut(),
           ),
@@ -1213,13 +1218,13 @@ class _RidePanelState extends State<_RidePanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('В пути',
+                    Text(tr('В пути'),
                         style: TextStyle(
                           color: context.ink,
                           fontSize: 24, fontWeight: FontWeight.w800,
                         )),
                     const SizedBox(height: 4),
-                    Text('До места назначения',
+                    Text(tr('До места назначения'),
                         style: TextStyle(color: context.muted, fontSize: 14)),
                   ],
                 ),
@@ -1246,13 +1251,13 @@ class _RidePanelState extends State<_RidePanel> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
-              _IconAction(icon: Icons.phone_rounded,   label: 'Водитель'),
+              _IconAction(icon: Icons.phone_rounded,   label: tr('Водитель')),
               const SizedBox(width: 8),
-              _IconAction(icon: Icons.share_rounded,   label: 'Поделиться'),
+              _IconAction(icon: Icons.share_rounded,   label: tr('Поделиться')),
               const SizedBox(width: 8),
-              _IconAction(icon: Icons.add_circle_outline, label: 'Остановка'),
+              _IconAction(icon: Icons.add_circle_outline, label: tr('Остановка')),
               const SizedBox(width: 8),
-              _IconAction(icon: Icons.shield_outlined, label: 'Помощь',
+              _IconAction(icon: Icons.shield_outlined, label: tr('Помощь'),
                   isRed: true),
             ],
           ),
@@ -1298,7 +1303,7 @@ class _RatePanelState extends State<_RatePanel> {
               )),
         ),
         const SizedBox(height: 12),
-        Text('Как прошла поездка?',
+        Text(tr('Как прошла поездка?'),
             style: TextStyle(
               color: context.ink,
               fontSize: 23, fontWeight: FontWeight.w800,
@@ -1344,7 +1349,7 @@ class _RatePanelState extends State<_RatePanel> {
                       color: sel ? context.jLine : Colors.transparent,
                     ),
                   ),
-                  child: Text(tagLabels[i],
+                  child: Text(tr(tagLabels[i]),
                       style: TextStyle(
                         color: sel ? context.accent : context.ink,
                         fontSize: 14, fontWeight: FontWeight.w600,
@@ -1358,7 +1363,7 @@ class _RatePanelState extends State<_RatePanel> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: _CtaButton(
-            label: 'Готово',
+            label: tr('Готово'),
             dark: true,
             enabled: _stars > 0,
             onTap: () => state.finishRating(_stars),
@@ -1390,7 +1395,7 @@ class _TripMini extends StatelessWidget {
             Divider(height: 1, indent: 40, color: context.lineC),
             _TripRow(isDot: false,
                 label: state.destination.isEmpty
-                    ? 'Скажу водителю'
+                    ? tr('Скажу водителю')
                     : state.destination,
                 sub: state.tariffPrice),
           ],
@@ -1527,10 +1532,10 @@ class _ActionRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _IconAction(icon: Icons.phone_rounded, label: 'Позвонить'),
-          _IconAction(icon: Icons.chat_bubble_outline_rounded, label: 'Написать'),
-          _IconAction(icon: Icons.share_rounded, label: 'Поделиться'),
-          _IconAction(icon: Icons.close_rounded, label: 'Отменить',
+          _IconAction(icon: Icons.phone_rounded, label: tr('Позвонить')),
+          _IconAction(icon: Icons.chat_bubble_outline_rounded, label: tr('Написать')),
+          _IconAction(icon: Icons.share_rounded, label: tr('Поделиться')),
+          _IconAction(icon: Icons.close_rounded, label: tr('Отменить'),
               isRed: true, onTap: onCancel),
         ],
       ),
@@ -1778,24 +1783,28 @@ class _TariffCard extends StatelessWidget {
     final state = context.watch<AppState>();
     final s = state.settings;
     var (name, price, note) = switch (tariff) {
-      Tariff.local    => ('Посёлок', formatPrice(s.localPrice), '≈ 3 мин'),
+      Tariff.local    => (tr('Посёлок'), formatPrice(s.localPrice), tr('≈ 3 мин')),
       Tariff.border   => (
-          state.intercityTo == null ? 'Межгород' : state.intercityName,
-          '${state.intercityMany ? 'от ' : ''}${formatPrice(state.intercityMinSeat)}',
-          'за место'),
+          state.intercityTo == null ? tr('Межгород') : state.intercityName,
+          state.intercityMany
+              ? trf('от {price}', {'price': formatPrice(state.intercityMinSeat)})
+              : formatPrice(state.intercityMinSeat),
+          tr('за место')),
       Tariff.whole    => (
-          'Вся машина',
-          '${state.intercityMany ? 'от ' : ''}${formatPrice(state.intercityMinWhole)}',
-          state.intercityMany || state.intercityTo == null ? 'межгород' : '→ ${state.intercityTo!.name}'),
-      Tariff.delivery => ('Доставка', formatPrice(s.deliveryPrice), 'по посёлку'),
-      Tariff.cargo    => ('Грузовое', 'Торг', 'цену предложат'),
+          tr('Вся машина'),
+          state.intercityMany
+              ? trf('от {price}', {'price': formatPrice(state.intercityMinWhole)})
+              : formatPrice(state.intercityMinWhole),
+          state.intercityMany || state.intercityTo == null ? tr('межгород') : '→ ${state.intercityTo!.name}'),
+      Tariff.delivery => (tr('Доставка'), formatPrice(s.deliveryPrice), tr('по посёлку')),
+      Tariff.cargo    => (tr('Грузовое'), tr('Торг'), tr('цену предложат')),
     };
     if (tariff == Tariff.local) {
       price = formatPrice(state.localPriceInt);
       if (state.isKppTrip) {
-        note = 'Таможня · КПП';
+        note = tr('Таможня · КПП');
       } else if (state.isFarTrip) {
-        note = 'дальше 3 км';
+        note = tr('дальше 3 км');
       }
     }
     return AnimatedContainer(
@@ -1915,7 +1924,7 @@ class _SideDrawer extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(state.userName.isEmpty ? 'Клиент' : state.userName,
+                      Text(state.userName.isEmpty ? tr('Клиент') : state.userName,
                           style: const TextStyle(
                             color: Color(0xFFF2F4F7),
                             fontSize: 17, fontWeight: FontWeight.w700,
@@ -1937,27 +1946,27 @@ class _SideDrawer extends StatelessWidget {
               children: [
                 _DrawerItem(
                   icon: Icons.access_time_outlined,
-                  label: 'Мои поездки',
+                  label: tr('Мои поездки'),
                   onTap: onClose,
                 ),
                 _DrawerItem(
                   icon: Icons.domain_outlined,
-                  label: 'Межгород · Ушарал',
+                  label: tr('Межгород · Ушарал'),
                   onTap: onClose,
                 ),
                 _DrawerItem(
                   icon: Icons.inventory_2_outlined,
-                  label: 'Доставка',
+                  label: tr('Доставка'),
                   onTap: onClose,
                 ),
                 _DrawerItem(
                   icon: Icons.drive_eta_outlined,
                   label: state.myDriver?.approval == Approval.approved
-                      ? 'Режим водителя'
-                      : 'Стать водителем',
+                      ? tr('Режим водителя')
+                      : tr('Стать водителем'),
                   badge: switch (state.myDriver?.approval) {
-                    Approval.pending => 'на проверке',
-                    Approval.rejected => 'отклонена',
+                    Approval.pending => tr('на проверке'),
+                    Approval.rejected => tr('отклонена'),
                     _ => null,
                   },
                   onTap: () {
@@ -1973,12 +1982,20 @@ class _SideDrawer extends StatelessWidget {
                 ),
                 _DrawerItem(
                   icon: Icons.headset_outlined,
-                  label: 'Поддержка',
+                  label: tr('Поддержка'),
                   onTap: onClose,
                 ),
                 _DrawerItem(
+                  icon: Icons.language,
+                  label: 'Тіл / Язык',
+                  onTap: () {
+                    onClose();
+                    pickLanguage(context);
+                  },
+                ),
+                _DrawerItem(
                   icon: Icons.logout_rounded,
-                  label: 'Выйти',
+                  label: tr('Выйти'),
                   onTap: () {
                     onClose();
                     FirebaseAuth.instance.signOut();
@@ -2006,7 +2023,7 @@ class _SideDrawer extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('ТЕМА ОФОРМЛЕНИЯ',
+                      Text(tr('ТЕМА ОФОРМЛЕНИЯ'),
                           style: TextStyle(
                             color: context.accent,
                             fontSize: 12, fontWeight: FontWeight.w700,
@@ -2024,24 +2041,24 @@ class _SideDrawer extends StatelessWidget {
                           children: [
                             _ThemeBtn(
                                 icon: Icons.brightness_auto_outlined,
-                                label: 'Авто',
+                                label: tr('Авто'),
                                 selected: state.themeMode == ThemeMode.system,
                                 onTap: () => state.setTheme(ThemeMode.system)),
                             _ThemeBtn(
                                 icon: Icons.wb_sunny_outlined,
-                                label: 'Светлая',
+                                label: tr('Светлая'),
                                 selected: state.themeMode == ThemeMode.light,
                                 onTap: () => state.setTheme(ThemeMode.light)),
                             _ThemeBtn(
                                 icon: Icons.nights_stay_outlined,
-                                label: 'Тёмная',
+                                label: tr('Тёмная'),
                                 selected: state.themeMode == ThemeMode.dark,
                                 onTap: () => state.setTheme(ThemeMode.dark)),
                           ],
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text('Авто: как на телефоне — днём светлая, ночью тёмная',
+                      Text(tr('Авто: как на телефоне — днём светлая, ночью тёмная'),
                           style: TextStyle(
                             color: context.muted,
                             fontSize: 12.5, height: 1.4,
@@ -2051,7 +2068,7 @@ class _SideDrawer extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 // Демо-примечание
-                Text('Демо-прототип. Имена, номера машин и цены — примеры.',
+                Text(tr('Демо-прототип. Имена, номера машин и цены — примеры.'),
                     style: TextStyle(
                       color: context.accent,
                       fontSize: 12, height: 1.5,
@@ -2234,14 +2251,14 @@ class _PaymentSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          Text('Способ оплаты',
+          Text(tr('Способ оплаты'),
               style: TextStyle(
                 color: context.ink,
                 fontSize: 20, fontWeight: FontWeight.w800,
               )),
           const SizedBox(height: 16),
           _PayOption(
-            icon: '💵', label: 'Наличные',
+            icon: '💵', label: tr('Наличные'),
             selected: state.paymentMethod == 'cash',
             onTap: () { state.setPayment('cash'); Navigator.pop(context); },
           ),
@@ -2330,7 +2347,7 @@ class _WishSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            Text('Пожелания водителю',
+            Text(tr('Пожелания водителю'),
                 style: TextStyle(
                   color: context.ink,
                   fontSize: 20, fontWeight: FontWeight.w800,
@@ -2340,7 +2357,7 @@ class _WishSheet extends StatelessWidget {
               maxLines: 3,
               autofocus: true,
               decoration: InputDecoration(
-                hintText: 'Например: привезти сдачу, помочь с вещами…',
+                hintText: tr('Например: привезти сдачу, помочь с вещами…'),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
                   borderSide: BorderSide(color: context.lineC),
@@ -2353,7 +2370,7 @@ class _WishSheet extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             _CtaButton(
-              label: 'Сохранить',
+              label: tr('Сохранить'),
               onTap: () => Navigator.pop(context),
             ),
           ],
@@ -2405,7 +2422,7 @@ void _choosePlace(BuildContext context, String title, List<Place> places) {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
-            child: Text('$title — какая?',
+            child: Text(trf('{title} — какая?', {'title': title}),
                 style: TextStyle(
                   color: ctx.ink,
                   fontSize: 20, fontWeight: FontWeight.w800,
@@ -2484,7 +2501,7 @@ class _WhereField extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                has ? state.destination : 'Куда едем?',
+                has ? state.destination : tr('Куда едем?'),
                 style: TextStyle(
                   color: has ? context.ink : context.hint,
                   fontSize: 19,
@@ -2499,7 +2516,7 @@ class _WhereField extends StatelessWidget {
               Text(
                 r == null
                     ? '…'
-                    : '${formatDistance(r.meters)} · ${r.minutes} мин',
+                    : trf('{dist} · {min} мин', {'dist': formatDistance(r.meters), 'min': r.minutes}),
                 style: TextStyle(
                   color: context.accent,
                   fontSize: 13.5, fontWeight: FontWeight.w700,
@@ -2507,7 +2524,7 @@ class _WhereField extends StatelessWidget {
               ),
               IconButton(
                 icon: Icon(Icons.close_rounded, color: context.muted, size: 20),
-                tooltip: 'Убрать',
+                tooltip: tr('Убрать'),
                 onPressed: state.clearDestination,
               ),
             ] else
@@ -2550,12 +2567,12 @@ class _PickPanel extends StatelessWidget {
                   children: [
                     Text(
                       forFrom
-                          ? 'Двигайте карту — машина приедет к булавке'
-                          : 'Двигайте карту — куда поедем',
+                          ? tr('Двигайте карту — машина приедет к булавке')
+                          : tr('Двигайте карту — куда поедем'),
                       style: TextStyle(color: context.muted, fontSize: 12.5),
                     ),
                     Text(
-                      state.pickAddress ?? 'Определяем адрес…',
+                      state.pickAddress ?? tr('Определяем адрес…'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -2565,7 +2582,7 @@ class _PickPanel extends StatelessWidget {
                       ),
                     ),
                     if (state.pickNear != null)
-                      Text('Рядом: ${state.pickNear}',
+                      Text(trf('Рядом: {near}', {'near': state.pickNear!}),
                           style: TextStyle(
                             color: context.accent,
                             fontSize: 13, fontWeight: FontWeight.w600,
@@ -2577,7 +2594,7 @@ class _PickPanel extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           _CtaButton(
-            label: 'Готово',
+            label: tr('Готово'),
             enabled: state.pickPoint != null,
             onTap: state.confirmPick,
           ),
@@ -2639,7 +2656,7 @@ class _PlacePanel extends StatelessWidget {
             children: [
               Expanded(
                 child: _CtaButton(
-                  label: 'Отсюда',
+                  label: tr('Отсюда'),
                   soft: true,
                   onTap: () {
                     state.selectPlace(null);
@@ -2650,7 +2667,7 @@ class _PlacePanel extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: _CtaButton(
-                  label: 'Сюда',
+                  label: tr('Сюда'),
                   onTap: () => state.setDestination(place.name, place.point),
                 ),
               ),
@@ -2706,20 +2723,20 @@ class _WhatScreenState extends State<_WhatScreen> {
       appBar: AppBar(
         backgroundColor: context.paper,
         elevation: 0,
-        title: Text(cargo ? 'Грузовое' : 'Доставка'),
+        title: Text(cargo ? tr('Грузовое') : tr('Доставка')),
       ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
           children: [
-            Text(cargo ? 'Что везём?' : 'Что привезти?',
+            Text(cargo ? tr('Что везём?') : tr('Что привезти?'),
                 style: TextStyle(color: context.ink, fontSize: 24, fontWeight: FontWeight.w800)),
             const SizedBox(height: 6),
             Text(
               cargo
-                  ? 'Например: холодильник и 10 мешков цемента'
-                  : 'Что купить или забрать и где. Например: хлеб и молоко из «Planeta». '
-                      'Покупки оплачиваете водителю отдельно.',
+                  ? tr('Например: холодильник и 10 мешков цемента')
+                  : tr('Что купить или забрать и где. Например: хлеб и молоко из «Planeta». '
+                      'Покупки оплачиваете водителю отдельно.'),
               style: TextStyle(color: context.muted, fontSize: 14.5, height: 1.4),
             ),
             const SizedBox(height: 16),
@@ -2737,20 +2754,20 @@ class _WhatScreenState extends State<_WhatScreen> {
                 controller: _price,
                 keyboardType: TextInputType.number,
                 style: TextStyle(color: context.ink, fontSize: 16),
-                decoration: deco('Ваша цена, ₸ (можно не указывать)',
-                    helper: 'Водители предложат свою цену — вы выберете'),
+                decoration: deco(tr('Ваша цена, ₸ (можно не указывать)'),
+                    helper: tr('Водители предложат свою цену — вы выберете')),
               ),
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 controlAffinity: ListTileControlAffinity.leading,
                 value: _loaders,
                 onChanged: (v) => setState(() => _loaders = v ?? false),
-                title: const Text('Нужны грузчики'),
+                title: Text(tr('Нужны грузчики')),
               ),
             ],
             const SizedBox(height: 16),
             _CtaButton(
-              label: cargo ? 'Найти грузовую машину' : 'Заказать',
+              label: cargo ? tr('Найти грузовую машину') : tr('Заказать'),
               onTap: _done,
             ),
           ],

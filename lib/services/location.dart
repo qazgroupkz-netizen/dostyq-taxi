@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import '../i18n.dart';
 
 class LocationService {
   /// Понятная причина последней неудачи; null — последняя попытка удалась.
@@ -8,7 +9,7 @@ class LocationService {
 
   static Future<String?> _permissionError() async {
     if (!await Geolocator.isLocationServiceEnabled()) {
-      return 'Службы геолокации выключены на устройстве.';
+      return tr('Службы геолокации выключены на устройстве.');
     }
     var p = await Geolocator.checkPermission();
     if (p == LocationPermission.denied) p = await Geolocator.requestPermission();
@@ -17,23 +18,23 @@ class LocationService {
       case LocationPermission.whileInUse:
         return null;
       case LocationPermission.deniedForever:
-        return 'Доступ к геолокации запрещён навсегда — включите его в настройках.';
+        return tr('Доступ к геолокации запрещён навсегда — включите его в настройках.');
       default:
-        return 'Доступ к геолокации запрещён.';
+        return tr('Доступ к геолокации запрещён.');
     }
   }
 
   static String describe(Object e) {
     if (e is TimeoutException) {
-      return 'Устройство не сообщило координаты вовремя (таймаут).';
+      return tr('Устройство не сообщило координаты вовремя (таймаут).');
     }
     if (e is LocationServiceDisabledException) {
-      return 'Службы геолокации выключены на устройстве.';
+      return tr('Службы геолокации выключены на устройстве.');
     }
     if (e is PermissionDeniedException) {
-      return 'Доступ к геолокации запрещён.';
+      return tr('Доступ к геолокации запрещён.');
     }
-    return 'Ошибка геолокации: $e';
+    return trf('Ошибка геолокации: {e}', {'e': e});
   }
 
   static Future<LatLng?> current() async {

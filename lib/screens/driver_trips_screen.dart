@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../data/trips.dart';
+import '../i18n.dart';
 import '../services/sound.dart';
 import '../state.dart';
 import '../theme.dart';
@@ -15,7 +16,7 @@ String _dayTitle(String key) {
   final today = DateTime.now();
   final t0 = DateTime(today.year, today.month, today.day);
   final diff = d.difference(t0).inDays;
-  final name = diff == 0 ? 'Сегодня' : diff == 1 ? 'Завтра' : _weekdays[d.weekday - 1];
+  final name = diff == 0 ? tr('Сегодня') : diff == 1 ? tr('Завтра') : tr(_weekdays[d.weekday - 1]);
   return '$name, ${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}';
 }
 
@@ -52,7 +53,7 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('Новый рейс', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+                Text(tr('Новый рейс'), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 12),
                 Text('${state.region.name} →', style: const TextStyle(fontSize: 15)),
                 DropdownButton<String>(
@@ -81,13 +82,15 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
                     if (t != null) setSt(() => time = t);
                   },
                   icon: const Icon(Icons.schedule_rounded),
-                  label: Text('Время выезда: ${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}'),
+                  label: Text(trf('Время выезда: {t}', {
+                    't': '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
+                  })),
                 ),
                 const SizedBox(height: 14),
                 FilledButton(
                   onPressed: () => Navigator.pop(ctx, true),
                   style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-                  child: const Text('Создать рейс'),
+                  child: Text(tr('Создать рейс')),
                 ),
               ],
             ),
@@ -115,11 +118,11 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
       parcelPrice: state.settings.routeTo(to).parcel,
     ));
       messenger.showSnackBar(
-        const SnackBar(content: Text('Рейс создан. Клиенты уже видят его.')),
+        SnackBar(content: Text(tr('Рейс создан. Клиенты уже видят его.'))),
       );
     } catch (e) {
       messenger.showSnackBar(SnackBar(
-        content: Text('Рейс не сохранился: $e'),
+        content: Text(trf('Рейс не сохранился: {e}', {'e': e})),
         duration: const Duration(seconds: 8),
       ));
     }
@@ -132,18 +135,18 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
         state.allRegions.where((r) => r.id == id).map((r) => r.name).firstOrNull ?? id;
     return Scaffold(
       backgroundColor: context.bg,
-      appBar: AppBar(title: const Text('Мои рейсы')),
+      appBar: AppBar(title: Text(tr('Мои рейсы'))),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _create,
         backgroundColor: context.taxi,
         foregroundColor: context.onTaxi,
         icon: const Icon(Icons.add_rounded),
-        label: const Text('Новый рейс'),
+        label: Text(tr('Новый рейс')),
       ),
       body: StreamBuilder<List<Trip>>(
         stream: _mine,
         builder: (context, snap) {
-          if (snap.hasError) return Center(child: Text('Ошибка: ${snap.error}'));
+          if (snap.hasError) return Center(child: Text(trf('Ошибка: {e}', {'e': '${snap.error}'})));
           if (!snap.hasData) return const Center(child: CircularProgressIndicator());
           final today = dateKey(DateTime.now());
           final list = snap.data!.where((t) => t.date.compareTo(today) >= 0).toList();
@@ -155,7 +158,7 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
-                child: Text('Рейсов нет. Нажмите «Новый рейс», чтобы клиенты могли бронировать места.',
+                child: Text(tr('Рейсов нет. Нажмите «Новый рейс», чтобы клиенты могли бронировать места.'),
                     textAlign: TextAlign.center,
                     style: TextStyle(color: context.muted, fontSize: 15, height: 1.5)),
               ),
@@ -188,44 +191,55 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
                             final ok = await showDialog<bool>(
                               context: context,
                               builder: (ctx) => AlertDialog(
-                                title: const Text('Отменить рейс?'),
-                                content: const Text('Позвоните пассажирам — они увидят, что рейса нет.'),
+                                title: Text(tr('Отменить рейс?')),
+                                content: Text(tr('Позвоните пассажирам — они увидят, что рейса нет.')),
                                 actions: [
-                                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Нет')),
-                                  TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Отменить')),
+                                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Нет'))),
+                                  TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('Отменить'))),
                                 ],
                               ),
                             );
                             if (ok == true) await state.trips.cancel(t.id);
                           },
-                          child: Text('Отменить', style: TextStyle(color: context.danger)),
+                          child: Text(tr('Отменить'), style: TextStyle(color: context.danger)),
                         ),
                       ],
                     ),
                     Text('${name(t.from)} → ${name(t.to)}', style: TextStyle(color: context.muted)),
                     Text(
-                      'Место ${formatPrice(t.seatPrice)} · вся машина ${formatPrice(t.wholePrice)} · посылка ${formatPrice(_parcelPrice(state, t))}',
+                      trf('Место {s} · вся машина {w} · посылка {p}', {
+                        's': formatPrice(t.seatPrice),
+                        'w': formatPrice(t.wholePrice),
+                        'p': formatPrice(_parcelPrice(state, t)),
+                      }),
                       style: TextStyle(color: context.ink, fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 10),
                     if (t.whole != null)
-                      _row(context, Icons.local_taxi_rounded, 'Вся машина: ${t.whole!.name}', t.whole!.phone)
+                      _row(context, Icons.local_taxi_rounded, trf('Вся машина: {n}', {'n': t.whole!.name}), t.whole!.phone)
                     else ...[
                       for (var n = 1; n <= Trip.seatCount; n++)
                         _row(
                           context,
                           t.seats[n] == null ? Icons.event_seat_outlined : Icons.person_rounded,
-                          t.seats[n] == null ? 'Место $n — свободно' : 'Место $n: ${t.seats[n]!.name}',
+                          t.seats[n] == null
+                              ? trf('Место {n} — свободно', {'n': n})
+                              : trf('Место {n}: {name}', {'n': n, 'name': t.seats[n]!.name}),
                           t.seats[n]?.phone ?? '',
                         ),
                     ],
                     if (t.parcels.isNotEmpty) ...[
                       const SizedBox(height: 8),
-                      Text('Посылки', style: TextStyle(color: context.ink, fontWeight: FontWeight.w700)),
+                      Text(tr('Посылки'), style: TextStyle(color: context.ink, fontWeight: FontWeight.w700)),
                       for (final p in t.parcels)
                         _row(context, Icons.inventory_2_outlined,
-                            '${p.what} (${formatPrice(p.price > 0 ? p.price : _parcelPrice(state, t))}) — от ${p.senderName} ${p.senderPhone}',
-                            'получит ${p.toName} ${p.toPhone}'),
+                            trf('{what} ({price}) — от {sender} {phone}', {
+                              'what': p.what,
+                              'price': formatPrice(p.price > 0 ? p.price : _parcelPrice(state, t)),
+                              'sender': p.senderName,
+                              'phone': p.senderPhone,
+                            }),
+                            trf('получит {name} {phone}', {'name': p.toName, 'phone': p.toPhone})),
                     ],
                   ],
                 ),

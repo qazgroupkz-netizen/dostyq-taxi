@@ -22,6 +22,7 @@ dependencies:
   web: ^1.0.0
   http: ^1.2.2
   image_picker: ^1.1.2
+  shared_preferences: ^2.3.2
 
 # 4.6.2 требует Flutter 3.27+ (flutter.compileSdkVersion в плагине), в CI стоит 3.24.
 dependency_overrides:

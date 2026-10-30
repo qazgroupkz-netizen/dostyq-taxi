@@ -9,6 +9,7 @@ import 'data/places.dart';
 import 'data/regions.dart';
 import 'data/settings.dart';
 import 'data/trips.dart';
+import 'i18n.dart';
 import 'services/geo_api.dart';
 import 'services/location.dart';
 import 'services/sound.dart';
@@ -661,7 +662,7 @@ class AppState extends ChangeNotifier {
       if (p != null) {
         if (_gpsSub != null) _onGps(p);
       } else if (myLocation == null) {
-        gpsError = LocationService.lastError ?? 'Местоположение не получено.';
+        gpsError = LocationService.lastError ?? tr('Местоположение не получено.');
       }
       notifyListeners();
     });
@@ -680,7 +681,7 @@ class AppState extends ChangeNotifier {
         if (p != null) {
           myLocation = p;
         } else {
-          gpsError = LocationService.lastError ?? 'Местоположение не получено.';
+          gpsError = LocationService.lastError ?? tr('Местоположение не получено.');
         }
         notifyListeners();
       });
@@ -835,11 +836,11 @@ class AppState extends ChangeNotifier {
   // ─── Геттеры ─────────────────────────────────────────────────────────────
   String get tariffName {
     switch (tariff) {
-      case Tariff.local:    return 'Посёлок';
+      case Tariff.local:    return tr('Посёлок');
       case Tariff.border:   return 'Ушарал';
-      case Tariff.whole:    return 'Вся машина';
-      case Tariff.delivery: return 'Доставка';
-      case Tariff.cargo:    return 'Грузовое';
+      case Tariff.whole:    return tr('Вся машина');
+      case Tariff.delivery: return tr('Доставка');
+      case Tariff.cargo:    return tr('Грузовое');
     }
   }
 
@@ -877,7 +878,7 @@ class AppState extends ChangeNotifier {
   /// Одно направление — его название; несколько — «Межгород».
   String get intercityName {
     final n = regions.where((r) => r.id != regionId).length;
-    return n == 1 ? intercityTo!.name : 'Межгород';
+    return n == 1 ? intercityTo!.name : tr('Межгород');
   }
 
   /// Самые низкие цены среди направлений — для «от …» на карточке.
@@ -902,7 +903,7 @@ class AppState extends ChangeNotifier {
   }
 
   String get paymentLabel =>
-      paymentMethod == 'kaspi' ? 'Kaspi' : 'Наличные';
+      paymentMethod == 'kaspi' ? 'Kaspi' : tr('Наличные');
 }
 
 String formatPrice(int p) {

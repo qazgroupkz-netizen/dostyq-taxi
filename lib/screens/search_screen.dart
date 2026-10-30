@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart' show Distance;
 import 'package:provider/provider.dart';
 import '../data/places.dart';
+import '../i18n.dart';
 import '../state.dart';
 import '../theme.dart';
 
@@ -52,9 +53,9 @@ class _SearchScreenState extends State<SearchScreen> {
     final messenger = ScaffoldMessenger.of(context);
     await state.pickupFromGps();
     if (state.myLocation == null) {
-      messenger.showSnackBar(const SnackBar(
-        content: Text('Не удалось определить местоположение. '
-            'Разрешите доступ к геолокации в настройках браузера.'),
+      messenger.showSnackBar(SnackBar(
+        content: Text(tr('Не удалось определить местоположение. '
+            'Разрешите доступ к геолокации в настройках браузера.')),
       ));
       return;
     }
@@ -87,7 +88,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       onPressed: () => Navigator.of(context).pop(),
                     ),
                     Text(
-                      'Маршрут',
+                      tr('Маршрут'),
                       style: TextStyle(
                         color: context.ink,
                         fontSize: 20,
@@ -111,7 +112,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         active: _forFrom,
                         value: state.fromAddress,
                         ctrl: _forFrom ? _ctrl : null,
-                        hint: 'Откуда: улица, дом или место',
+                        hint: tr('Откуда: улица, дом или место'),
                         onTap: () => setState(() {
                           _forFrom = true;
                           _ctrl.clear();
@@ -123,7 +124,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         active: !_forFrom,
                         value: state.destination,
                         ctrl: _forFrom ? null : _ctrl,
-                        hint: 'Куда: улица, дом или место',
+                        hint: tr('Куда: улица, дом или место'),
                         onTap: () => setState(() {
                           _forFrom = false;
                           _ctrl.clear();
@@ -151,13 +152,13 @@ class _SearchScreenState extends State<SearchScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Указать на карте',
+                              Text(tr('Указать на карте'),
                                   style: TextStyle(
                                     color: context.ink,
                                     fontSize: 15,
                                     fontWeight: FontWeight.w700,
                                   )),
-                              Text('Если нужного адреса нет в списке',
+                              Text(tr('Если нужного адреса нет в списке'),
                                   style: TextStyle(color: context.muted, fontSize: 12.5)),
                             ],
                           ),
@@ -177,8 +178,8 @@ class _SearchScreenState extends State<SearchScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
                   child: Text(
                     _q.isNotEmpty
-                        ? 'ПОДСКАЗКИ'
-                        : _forFrom ? 'ОТКУДА ВАС ЗАБРАТЬ' : 'МЕСТА В ДОСТЫКЕ',
+                        ? tr('ПОДСКАЗКИ')
+                        : _forFrom ? tr('ОТКУДА ВАС ЗАБРАТЬ') : tr('МЕСТА В ДОСТЫКЕ'),
                     style: TextStyle(
                       color: context.accent,
                       fontSize: 12,
@@ -189,8 +190,8 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
                 if (_forFrom && _q.isEmpty)
                   _PlaceItem(
-                    name: 'Моё местоположение',
-                    sub: 'По GPS',
+                    name: tr('Моё местоположение'),
+                    sub: tr('По GPS'),
                     icon: Icons.near_me_rounded,
                     iconColor: context.accent,
                     onTap: _useGps,
@@ -207,8 +208,8 @@ class _SearchScreenState extends State<SearchScreen> {
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: Text(
-                      'Ничего не нашли. Проверьте название или нажмите '
-                      '«Указать на карте» выше.',
+                      tr('Ничего не нашли. Проверьте название или нажмите '
+                          '«Указать на карте» выше.'),
                       style: TextStyle(color: context.muted, fontSize: 15, height: 1.5),
                     ),
                   ),

@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../config.dart';
+import '../i18n.dart';
 import '../state.dart';
 import '../theme.dart';
 import '../widgets/ornament_icon.dart';
@@ -43,7 +44,7 @@ class _AuthScreenState extends State<AuthScreen> {
   Future<void> _sendCode() async {
     final digits = _phoneCtrl.text.replaceAll(RegExp(r'[^\d]'), '');
     if (digits.length < 10) {
-      setState(() => _error = 'Введите номер телефона (10 цифр)');
+      setState(() => _error = tr('Введите номер телефона (10 цифр)'));
       return;
     }
     setState(() { _loading = true; _error = null; });
@@ -79,7 +80,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _verifyCode() async {
     if (_codeCtrl.text.trim().length < 6) {
-      setState(() => _error = 'Введите 6-значный код');
+      setState(() => _error = tr('Введите 6-значный код'));
       return;
     }
     setState(() { _loading = true; _error = null; });
@@ -97,7 +98,7 @@ class _AuthScreenState extends State<AuthScreen> {
       await _afterLogin(uc.user);
     } catch (_) {
       if (mounted) setState(() {
-        _error = 'Неверный код. Попробуйте ещё раз.';
+        _error = tr('Неверный код. Попробуйте ещё раз.');
         _loading = false;
       });
     }
@@ -114,7 +115,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _saveName() async {
     if (_nameCtrl.text.trim().isEmpty) {
-      setState(() => _error = 'Введите ваше имя');
+      setState(() => _error = tr('Введите ваше имя'));
       return;
     }
     setState(() { _loading = true; _error = null; });
@@ -128,7 +129,7 @@ class _AuthScreenState extends State<AuthScreen> {
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      if (mounted) setState(() { _error = 'Не удалось сохранить: $e'; _loading = false; });
+      if (mounted) setState(() { _error = trf('Не удалось сохранить: {e}', {'e': e}); _loading = false; });
       return;
     }
     if (mounted) await context.read<AppState>().reloadProfile();
@@ -136,10 +137,10 @@ class _AuthScreenState extends State<AuthScreen> {
 
   String _errMsg(String code) {
     switch (code) {
-      case 'invalid-phone-number':       return 'Неверный формат номера';
-      case 'too-many-requests':          return 'Слишком много попыток. Попробуйте позже.';
-      case 'invalid-verification-code':  return 'Неверный код';
-      default:                           return 'Ошибка ($code)';
+      case 'invalid-phone-number':       return tr('Неверный формат номера');
+      case 'too-many-requests':          return tr('Слишком много попыток. Попробуйте позже.');
+      case 'invalid-verification-code':  return tr('Неверный код');
+      default:                           return trf('Ошибка ({code})', {'code': code});
     }
   }
 
@@ -153,15 +154,29 @@ class _AuthScreenState extends State<AuthScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 60, height: 60,
-              decoration: BoxDecoration(
-                color: context.taxi,
-                borderRadius: BorderRadius.circular(20),
+            Row(children: [
+              Container(
+                width: 60, height: 60,
+                decoration: BoxDecoration(
+                  color: context.taxi,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                alignment: Alignment.center,
+                child: OrnamentIcon(size: 34, color: context.onTaxi),
               ),
-              alignment: Alignment.center,
-              child: OrnamentIcon(size: 34, color: context.onTaxi),
-            ),
+              const Spacer(),
+              // Переключатель языка (подписи не переводятся).
+              TextButton(
+                onPressed: () async {
+                  await setLang(appLang.value == 'kk' ? 'ru' : 'kk');
+                  if (mounted) setState(() => _error = null);
+                },
+                child: Text(appLang.value == 'kk' ? 'Русский' : 'Қазақша',
+                    style: TextStyle(
+                        color: context.accent,
+                        fontSize: 15, fontWeight: FontWeight.w700)),
+              ),
+            ]),
             const SizedBox(height: 22),
             Text(kBrand,
                 style: TextStyle(
@@ -171,8 +186,8 @@ class _AuthScreenState extends State<AuthScreen> {
                 )),
             const SizedBox(height: 8),
             Text(
-              _nameStep ? 'Как вас зовут?' :
-              _codeSent ? 'Введите код' : 'Вход',
+              _nameStep ? tr('Как вас зовут?') :
+              _codeSent ? tr('Введите код') : tr('Вход'),
               style: TextStyle(
                 color: context.ink,
                 fontSize: 32, fontWeight: FontWeight.w800,
@@ -182,10 +197,10 @@ class _AuthScreenState extends State<AuthScreen> {
             const SizedBox(height: 6),
             Text(
               _nameStep
-                  ? 'Имя увидит водитель при заказе'
+                  ? tr('Имя увидит водитель при заказе')
                   : _codeSent
-                      ? 'Код отправлен на $_fullPhone'
-                      : 'Такси и доставка по посёлку Достык',
+                      ? trf('Код отправлен на {phone}', {'phone': _fullPhone})
+                      : tr('Такси и доставка по посёлку Достык'),
               style: TextStyle(color: context.muted, fontSize: 15, height: 1.4),
             ),
             const SizedBox(height: 36),
@@ -218,7 +233,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   onPressed: () => setState(() {
                     _codeSent = false; _codeCtrl.clear(); _error = null;
                   }),
-                  child: Text('Изменить номер',
+                  child: Text(tr('Изменить номер'),
                       style: TextStyle(color: context.muted, fontSize: 14)),
                 ),
               ),
@@ -226,8 +241,8 @@ class _AuthScreenState extends State<AuthScreen> {
 
             const SizedBox(height: 36),
             Text(
-              'Продолжая, вы соглашаетесь с пользовательским соглашением '
-              'и даёте согласие на обработку персональных данных.',
+              tr('Продолжая, вы соглашаетесь с пользовательским соглашением '
+                  'и даёте согласие на обработку персональных данных.'),
               style: TextStyle(color: context.muted, fontSize: 12, height: 1.5),
             ),
           ],
@@ -319,7 +334,7 @@ class _AuthScreenState extends State<AuthScreen> {
       style: TextStyle(
           color: context.ink, fontSize: 18, fontWeight: FontWeight.w500),
       decoration: InputDecoration(
-        hintText: 'Например: Айгерим',
+        hintText: tr('Например: Айгерим'),
         hintStyle: TextStyle(color: context.hint),
         filled: true,
         fillColor: context.paper,
@@ -343,7 +358,7 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Widget _buildCta(BuildContext context) {
-    final label = _nameStep ? 'Продолжить' : _codeSent ? 'Войти' : 'Получить код';
+    final label = _nameStep ? tr('Продолжить') : _codeSent ? tr('Войти') : tr('Получить код');
     final action = _nameStep ? _saveName : _codeSent ? _verifyCode : _sendCode;
     return GestureDetector(
       onTap: _loading ? null : action,

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'config.dart';
+import 'i18n.dart';
 import 'state.dart';
 import 'theme.dart';
 import 'firebase_options.dart';
@@ -18,6 +19,7 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  await loadLang();
   runApp(
     ChangeNotifierProvider(
       create: (_) => AppState(),
@@ -36,7 +38,10 @@ class DostyqApp extends StatelessWidget {
     final isDriverMode = context.select<AppState, bool>((s) => s.isDriverMode);
     final profileLoaded = context.select<AppState, bool>((s) => s.profileLoaded);
     final hasName = context.select<AppState, bool>((s) => s.userName.isNotEmpty);
-    return MaterialApp(
+    // Смена языка перестраивает приложение (см. setLang в i18n.dart).
+    return ValueListenableBuilder<String>(
+      valueListenable: appLang,
+      builder: (context, lang, _) => MaterialApp(
       title: kBrand,
       debugShowCheckedModeBanner: false,
       themeMode: themeMode,
@@ -62,6 +67,7 @@ class DostyqApp extends StatelessWidget {
               ? const DriverScreen()
               : const ClientScreen();
         },
+      ),
       ),
     );
   }

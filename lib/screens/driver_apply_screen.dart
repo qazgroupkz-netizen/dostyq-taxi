@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../data/drivers.dart';
 import '../config.dart';
+import '../i18n.dart';
 import '../state.dart';
 import '../theme.dart';
 
@@ -75,12 +76,12 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Сфотографировать'),
+              title: Text(tr('Сфотографировать')),
               onTap: () => Navigator.pop(ctx, ImageSource.camera),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Выбрать из галереи'),
+              title: Text(tr('Выбрать из галереи')),
               onTap: () => Navigator.pop(ctx, ImageSource.gallery),
             ),
           ],
@@ -99,7 +100,7 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
     if (file == null) return;
     final bytes = await file.readAsBytes();
     if (bytes.length > 700 * 1024) {
-      setState(() => _error = 'Фото слишком большое. Сделайте снимок поменьше или обрежьте его.');
+      setState(() => _error = tr('Фото слишком большое. Сделайте снимок поменьше или обрежьте его.'));
       return;
     }
     setState(() {
@@ -110,7 +111,7 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
       await state.drivers.saveDoc(uid, kind, bytes);
       if (mounted) setState(() => _photos[kind] = bytes);
     } catch (e) {
-      if (mounted) setState(() => _error = 'Не удалось загрузить фото: $e');
+      if (mounted) setState(() => _error = trf('Не удалось загрузить фото: {e}', {'e': e}));
     } finally {
       if (mounted) setState(() => _uploading.remove(kind));
     }
@@ -152,7 +153,7 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _error = 'Не удалось отправить: $e');
+      if (mounted) setState(() => _error = trf('Не удалось отправить: {e}', {'e': e}));
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -178,8 +179,8 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
     final showForm = _editing || approval == Approval.none || approval == Approval.rejected;
 
     final (Widget body, String cta, bool ready, VoidCallback next) = switch (_step) {
-      0 => (_docsStep(context), 'Продолжить', _docsDone, () => setState(() => _step = 1)),
-      _ => (_carStep(context), _sending ? 'Отправляем…' : 'Отправить на проверку',
+      0 => (_docsStep(context), tr('Продолжить'), _docsDone, () => setState(() => _step = 1)),
+      _ => (_carStep(context), _sending ? tr('Отправляем…') : tr('Отправить на проверку'),
           _carDone && _consent && _offer && !_sending, _submit),
     };
 
@@ -201,7 +202,7 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
                   TextButton.icon(
                     onPressed: () => Navigator.of(context).pop(),
                     icon: const Icon(Icons.person_rounded, size: 18),
-                    label: const Text('Перейти в режим пассажира'),
+                    label: Text(tr('Перейти в режим пассажира')),
                     style: TextButton.styleFrom(
                       foregroundColor: context.ink,
                       backgroundColor: context.surface,
@@ -219,30 +220,31 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
                     _StatusCard(
                       icon: Icons.hourglass_top_rounded,
                       color: const Color(0xFFD97A00),
-                      title: 'Анкета на проверке',
-                      text: 'Админ проверит документы и машину. Обычно это занимает до одного дня. '
-                          'Когда одобрят, здесь откроется режим водителя.',
+                      title: tr('Анкета на проверке'),
+                      text: tr('Админ проверит документы и машину. Обычно это занимает до одного дня. '
+                          'Когда одобрят, здесь откроется режим водителя.'),
                       action: TextButton(
                         onPressed: () => setState(() {
                           _editing = true;
                           _step = 0;
                         }),
-                        child: const Text('Изменить анкету'),
+                        child: Text(tr('Изменить анкету')),
                       ),
                     ),
                   if (approval == Approval.rejected)
                     _StatusCard(
                       icon: Icons.error_outline_rounded,
                       color: context.danger,
-                      title: 'Анкета отклонена',
-                      text: 'Причина: ${p?.rejectReason ?? 'не указана'}. Исправьте и отправьте снова.',
+                      title: tr('Анкета отклонена'),
+                      text: trf('Причина: {r}. Исправьте и отправьте снова.',
+                          {'r': p?.rejectReason ?? tr('не указана')}),
                     ),
                   if (approval == Approval.blocked)
                     _StatusCard(
                       icon: Icons.block_rounded,
                       color: context.danger,
-                      title: 'Аккаунт водителя заблокирован',
-                      text: 'Свяжитесь с поддержкой $kBrand.',
+                      title: tr('Аккаунт водителя заблокирован'),
+                      text: trf('Свяжитесь с поддержкой {brand}.', {'brand': kBrand}),
                     ),
                   if (showForm) body,
                   if (showForm && _error != null)
@@ -297,7 +299,7 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('$done из $total фото',
+            Text(trf('{done} из {total} фото', {'done': done, 'total': total}),
                 style: TextStyle(color: context.muted, fontSize: 15, fontWeight: FontWeight.w700)),
             const SizedBox(height: 10),
             ClipRRect(
@@ -321,9 +323,9 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(child: _tile(context, front, 'Лицевая сторона')),
+              Expanded(child: _tile(context, front, tr('Лицевая сторона'))),
               const SizedBox(width: 14),
-              Expanded(child: _tile(context, back, 'Оборотная сторона')),
+              Expanded(child: _tile(context, back, tr('Оборотная сторона'))),
             ],
           ),
           const SizedBox(height: 20),
@@ -364,7 +366,7 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
           const SizedBox(height: 8),
           Text(label,
               style: TextStyle(color: context.ink, fontSize: 16, fontWeight: FontWeight.w700)),
-          Text(bytes != null ? 'Готово · заменить' : 'Сфотографировать',
+          Text(bytes != null ? tr('Готово · заменить') : tr('Сфотографировать'),
               style: TextStyle(
                 color: bytes != null ? context.accent : context.muted,
                 fontSize: 14.5, fontWeight: FontWeight.w600,
@@ -380,12 +382,12 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _title(context, 'Сфотографируйте документы',
-            'Снимите водительское удостоверение и свидетельство о регистрации ТС '
-            '(техпаспорт) с обеих сторон. Админ проверит их.'),
+        _title(context, tr('Сфотографируйте документы'),
+            tr('Снимите водительское удостоверение и свидетельство о регистрации ТС '
+            '(техпаспорт) с обеих сторон. Админ проверит их.')),
         _counter(context, done, kinds.length),
-        _pair(context, 'Водительское удостоверение', 'license_front', 'license_back'),
-        _pair(context, 'Свидетельство о регистрации (техпаспорт)', 'techpass_front', 'techpass_back'),
+        _pair(context, tr('Водительское удостоверение'), 'license_front', 'license_back'),
+        _pair(context, tr('Свидетельство о регистрации (техпаспорт)'), 'techpass_front', 'techpass_back'),
       ],
     );
   }
@@ -415,14 +417,14 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _title(context, 'Машина', 'Эти данные увидит клиент, когда вы примете заказ.'),
+        _title(context, tr('Машина'), tr('Эти данные увидит клиент, когда вы примете заказ.')),
         const SizedBox(height: 20),
         SizedBox(
           width: double.infinity,
           child: SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'car', label: Text('Легковая'), icon: Icon(Icons.local_taxi_rounded)),
-              ButtonSegment(value: 'cargo', label: Text('Грузовая'), icon: Icon(Icons.local_shipping_rounded)),
+            segments: [
+              ButtonSegment(value: 'car', label: Text(tr('Легковая')), icon: const Icon(Icons.local_taxi_rounded)),
+              ButtonSegment(value: 'cargo', label: Text(tr('Грузовая')), icon: const Icon(Icons.local_shipping_rounded)),
             ],
             selected: {_vehicle},
             onSelectionChanged: (s) => setState(() => _vehicle = s.first),
@@ -432,37 +434,37 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
           padding: const EdgeInsets.fromLTRB(4, 8, 4, 16),
           child: Text(
             _vehicle == 'cargo'
-                ? 'Вам будут приходить только грузовые заказы: переезды, стройматериалы, мебель.'
-                : 'Вам будут приходить поездки по посёлку и доставка.',
+                ? tr('Вам будут приходить только грузовые заказы: переезды, стройматериалы, мебель.')
+                : tr('Вам будут приходить поездки по посёлку и доставка.'),
             style: TextStyle(color: context.muted, fontSize: 13.5, height: 1.4),
           ),
         ),
-        _input(context, _name, 'Имя и фамилия', caps: TextCapitalization.words),
-        _input(context, _model, 'Марка и модель, например: Toyota Camry'),
-        _input(context, _color, 'Цвет, например: белая'),
-        _input(context, _plate, 'Госномер, например: 045 AKZ 18',
+        _input(context, _name, tr('Имя и фамилия'), caps: TextCapitalization.words),
+        _input(context, _model, tr('Марка и модель, например: Toyota Camry')),
+        _input(context, _color, tr('Цвет, например: белая')),
+        _input(context, _plate, tr('Госномер, например: 045 AKZ 18'),
             caps: TextCapitalization.characters),
         const SizedBox(height: 8),
         SizedBox(
           width: 220,
-          child: _tile(context, 'car', 'Фото машины спереди'),
+          child: _tile(context, 'car', tr('Фото машины спереди')),
         ),
         const SizedBox(height: 16),
-        Text('Первые 3 месяца подписка бесплатная.',
+        Text(tr('Первые 3 месяца подписка бесплатная.'),
             style: TextStyle(color: context.muted, fontSize: 14)),
         CheckboxListTile(
           contentPadding: EdgeInsets.zero,
           controlAffinity: ListTileControlAffinity.leading,
           value: _consent,
           onChanged: (v) => setState(() => _consent = v ?? false),
-          title: const Text('Согласен на сбор и обработку персональных данных'),
+          title: Text(tr('Согласен на сбор и обработку персональных данных')),
         ),
         CheckboxListTile(
           contentPadding: EdgeInsets.zero,
           controlAffinity: ListTileControlAffinity.leading,
           value: _offer,
           onChanged: (v) => setState(() => _offer = v ?? false),
-          title: const Text('Принимаю условия публичной оферты для водителей'),
+          title: Text(tr('Принимаю условия публичной оферты для водителей')),
         ),
       ],
     );

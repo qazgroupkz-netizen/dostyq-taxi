@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../data/regions.dart';
 import '../data/trips.dart';
+import '../i18n.dart';
 import '../state.dart';
 import '../theme.dart';
 
+// Подписи переводятся при показе: tr(_weekdays[i]).
 const _weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
 /// Рейсы между районами: места по одному или вся машина, посылки.
@@ -31,8 +33,8 @@ class _TripScreenState extends State<TripScreen> {
     final others = state.regions.where((r) => r.id != state.regionId).toList();
     if (others.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Межгород')),
-        body: const Center(child: Text('Пока нет других районов для поездки')),
+        appBar: AppBar(title: Text(tr('Межгород'))),
+        body: Center(child: Text(tr('Пока нет других районов для поездки'))),
       );
     }
     final to = others.any((r) => r.id == _to) ? _to! : others.first.id;
@@ -52,12 +54,12 @@ class _TripScreenState extends State<TripScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.wholeCarMode ? 'Вся машина' : 'Рейсы',
+            Text(widget.wholeCarMode ? tr('Вся машина') : tr('Рейсы'),
                 style: TextStyle(color: context.ink, fontSize: 18, fontWeight: FontWeight.w800)),
             Text(
               widget.wholeCarMode
                   ? '${formatPrice(s.whole)} · ${state.region.name} → $toName'
-                  : '${formatPrice(s.seat)} за место · ${state.region.name} → $toName',
+                  : trf('{price} за место · {from} → {to}', {'price': formatPrice(s.seat), 'from': state.region.name, 'to': toName}),
               style: TextStyle(color: context.muted, fontSize: 13),
             ),
           ],
@@ -116,7 +118,7 @@ class _TripScreenState extends State<TripScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                i == 0 ? 'Сегодня' : i == 1 ? 'Завтра' : _weekdays[d.weekday - 1],
+                                i == 0 ? tr('Сегодня') : i == 1 ? tr('Завтра') : tr(_weekdays[d.weekday - 1]),
                                 style: TextStyle(
                                   color: sel ? context.onTaxi : context.muted,
                                   fontSize: 12, fontWeight: FontWeight.w600,
@@ -142,7 +144,7 @@ class _TripScreenState extends State<TripScreen> {
               stream: _stream,
               builder: (context, snap) {
                 if (snap.hasError) {
-                  return Center(child: Text('Не удалось загрузить рейсы: ${snap.error}'));
+                  return Center(child: Text(trf('Не удалось загрузить рейсы: {e}', {'e': '${snap.error}'})));
                 }
                 if (!snap.hasData) return const Center(child: CircularProgressIndicator());
                 final trips = snap.data!;
@@ -151,7 +153,7 @@ class _TripScreenState extends State<TripScreen> {
                     child: Padding(
                       padding: const EdgeInsets.all(32),
                       child: Text(
-                        'На этот день рейсов пока нет.\nВыберите другой день — водители добавляют рейсы заранее.',
+                        tr('На этот день рейсов пока нет.\nВыберите другой день — водители добавляют рейсы заранее.'),
                         textAlign: TextAlign.center,
                         style: TextStyle(color: context.muted, fontSize: 15, height: 1.5),
                       ),
@@ -223,12 +225,12 @@ class _TripCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     myWhole
-                        ? 'Вы забронировали всю машину'
+                        ? tr('Вы забронировали всю машину')
                         : mySeat != null
-                            ? 'Ваше место № $mySeat'
+                            ? trf('Ваше место № {n}', {'n': mySeat})
                             : trip.whole != null
-                                ? 'Машина занята целиком'
-                                : 'Свободно мест: ${trip.freeSeats} из ${Trip.seatCount}',
+                                ? tr('Машина занята целиком')
+                                : trf('Свободно мест: {free} из {all}', {'free': trip.freeSeats, 'all': Trip.seatCount}),
                     style: TextStyle(
                       color: mySeat != null || myWhole
                           ? context.accent
@@ -277,10 +279,10 @@ class _TripSheetState extends State<_TripSheet> {
     try {
       final done = await f();
       if (!mounted) return;
-      _snack(done ? ok : fail);
+      _snack(tr(done ? ok : fail));
       if (done) setState(() => _picked = null);
     } catch (e) {
-      if (mounted) _snack('Ошибка: $e');
+      if (mounted) _snack(trf('Ошибка: {e}', {'e': e}));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -294,24 +296,24 @@ class _TripSheetState extends State<_TripSheet> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Передать посылку · ${formatPrice(_parcelPrice(state, t))}'),
+        title: Text(trf('Передать посылку · {price}', {'price': formatPrice(_parcelPrice(state, t))})),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: what, decoration: const InputDecoration(labelText: 'Что передаёте')),
-              TextField(controller: toName, decoration: const InputDecoration(labelText: 'Кто получит (имя)')),
+              TextField(controller: what, decoration: InputDecoration(labelText: tr('Что передаёте'))),
+              TextField(controller: toName, decoration: InputDecoration(labelText: tr('Кто получит (имя)'))),
               TextField(
                 controller: toPhone,
                 keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(labelText: 'Телефон получателя'),
+                decoration: InputDecoration(labelText: tr('Телефон получателя')),
               ),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Отправить')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Отмена'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('Отправить'))),
         ],
       ),
     );
@@ -364,7 +366,7 @@ class _TripSheetState extends State<_TripSheet> {
                 if (mySeat != null || myWhole)
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
-                    child: SelectableText('Телефон водителя: ${t.driverPhone}',
+                    child: SelectableText(trf('Телефон водителя: {phone}', {'phone': t.driverPhone}),
                         style: TextStyle(color: context.ink, fontSize: 14, fontWeight: FontWeight.w600)),
                   ),
                 const SizedBox(height: 16),
@@ -387,7 +389,7 @@ class _TripSheetState extends State<_TripSheet> {
                               await state.trips.cancelWhole(t.id);
                               return true;
                             }, 'Бронь машины отменена', ''),
-                    child: const Text('Отменить бронь всей машины'),
+                    child: Text(tr('Отменить бронь всей машины')),
                   )
                 else if (mySeat != null)
                   OutlinedButton(
@@ -397,7 +399,7 @@ class _TripSheetState extends State<_TripSheet> {
                               await state.trips.cancelSeat(t.id, mySeat);
                               return true;
                             }, 'Бронь места отменена', ''),
-                    child: Text('Отменить бронь места № $mySeat'),
+                    child: Text(trf('Отменить бронь места № {n}', {'n': mySeat})),
                   )
                 else if (widget.wholeMode)
                   FilledButton(
@@ -408,8 +410,8 @@ class _TripSheetState extends State<_TripSheet> {
                             'На этот рейс уже есть пассажиры — выберите другой'),
                     style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
                     child: Text(t.isEmpty
-                        ? 'Забронировать всю машину · ${formatPrice(t.wholePrice)}'
-                        : 'На рейсе уже есть пассажиры'),
+                        ? trf('Забронировать всю машину · {price}', {'price': formatPrice(t.wholePrice)})
+                        : tr('На рейсе уже есть пассажиры')),
                   )
                 else
                   FilledButton(
@@ -420,24 +422,24 @@ class _TripSheetState extends State<_TripSheet> {
                             'Это место уже заняли — выберите другое'),
                     style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
                     child: Text(_picked == null
-                        ? 'Нажмите на свободное место'
-                        : 'Забронировать место № $_picked · ${formatPrice(t.seatPrice)}'),
+                        ? tr('Нажмите на свободное место')
+                        : trf('Забронировать место № {n} · {price}', {'n': _picked!, 'price': formatPrice(t.seatPrice)})),
                   ),
                 const SizedBox(height: 10),
                 TextButton.icon(
                   onPressed: _busy ? null : () => _parcel(t),
                   icon: const Icon(Icons.inventory_2_outlined),
-                  label: Text('Передать посылку с этим рейсом · ${formatPrice(_parcelPrice(state, t))}'),
+                  label: Text(trf('Передать посылку с этим рейсом · {price}', {'price': formatPrice(_parcelPrice(state, t))})),
                 ),
                 for (final p in myParcels)
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.inventory_2_rounded),
                     title: Text(p.what),
-                    subtitle: Text('Получит: ${p.toName} ${p.toPhone}${p.price > 0 ? ' · ${formatPrice(p.price)}' : ''}'),
+                    subtitle: Text(trf('Получит: {name} {phone}', {'name': p.toName, 'phone': p.toPhone}) + (p.price > 0 ? ' · ${formatPrice(p.price)}' : '')),
                     trailing: IconButton(
                       icon: const Icon(Icons.close_rounded),
-                      tooltip: 'Убрать посылку',
+                      tooltip: tr('Убрать посылку'),
                       onPressed: () => state.trips.removeParcel(t.id, p.id),
                     ),
                   ),
@@ -479,7 +481,7 @@ class _SeatMap extends StatelessWidget {
           children: [
             Icon(taken || mine ? Icons.person_rounded : Icons.event_seat_outlined,
                 color: mine || sel ? context.onTaxi : context.muted),
-            Text(mine ? 'Вы' : '$n',
+            Text(mine ? tr('Вы') : '$n',
                 style: TextStyle(
                   color: mine || sel ? context.onTaxi : context.ink,
                   fontWeight: FontWeight.w700,
@@ -515,7 +517,7 @@ class _SeatMap extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.trip_origin_rounded, color: context.muted),
-                    Text('Водитель', style: TextStyle(color: context.muted, fontSize: 10.5)),
+                    Text(tr('Водитель'), style: TextStyle(color: context.muted, fontSize: 10.5)),
                   ],
                 ),
               ),

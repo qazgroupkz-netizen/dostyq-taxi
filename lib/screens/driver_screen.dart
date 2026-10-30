@@ -9,6 +9,7 @@ import '../theme.dart';
 import 'package:flutter_map/flutter_map.dart' show MapController;
 import 'package:latlong2/latlong.dart' show LatLng;
 import '../config.dart';
+import '../i18n.dart';
 import '../data/places.dart';
 import '../widgets/taxi_map.dart';
 
@@ -83,13 +84,13 @@ class _DriverBody extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${state.isOnline ? 'На линии' : 'Не в сети'} · ${state.region.name}',
+                            '${state.isOnline ? tr('На линии') : tr('Не в сети')} · ${state.region.name}',
                             style: const TextStyle(
                               color: Color(0xFFA3ABB6),
                               fontSize: 13, fontWeight: FontWeight.w500,
                             ),
                           ),
-                          Text(state.userName.isEmpty ? 'Водитель' : state.userName,
+                          Text(state.userName.isEmpty ? tr('Водитель') : state.userName,
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 21, fontWeight: FontWeight.w800,
@@ -98,12 +99,25 @@ class _DriverBody extends StatelessWidget {
                       ),
                       Row(
                         children: [
+                          // Язык интерфейса
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: IconButton(
+                              tooltip: 'Тіл / Язык',
+                              style: IconButton.styleFrom(
+                                backgroundColor: const Color(0xFF1F232A),
+                                fixedSize: const Size(46, 46),
+                              ),
+                              icon: const Icon(Icons.language, color: Color(0xFFFFD12E)),
+                              onPressed: () => pickLanguage(context),
+                            ),
+                          ),
                           // Межгород: рейсы этого водителя
                           if (state.driverCanWork)
                             Padding(
                               padding: const EdgeInsets.only(right: 8),
                               child: IconButton(
-                                tooltip: 'Мои рейсы',
+                                tooltip: tr('Мои рейсы'),
                                 style: IconButton.styleFrom(
                                   backgroundColor: const Color(0xFF1F232A),
                                   fixedSize: const Size(46, 46),
@@ -128,7 +142,7 @@ class _DriverBody extends StatelessWidget {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    state.isOnline ? 'На линии' : 'Оффлайн',
+                                    state.isOnline ? tr('На линии') : tr('Оффлайн'),
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 14, fontWeight: FontWeight.w600,
@@ -181,7 +195,8 @@ class _DriverBody extends StatelessWidget {
                               borderRadius: BorderRadius.circular(14),
                             ),
                             child: Text(
-                              'Ваши цены отправлены (${state.waitingBids}). Если клиент выберет вас — заказ откроется со звуком.',
+                              trf('Ваши цены отправлены ({n}). Если клиент выберет вас — заказ откроется со звуком.',
+                                  {'n': state.waitingBids}),
                               style: const TextStyle(color: Color(0xFFFFD98A), fontSize: 13.5, height: 1.4),
                             ),
                           ),
@@ -239,14 +254,14 @@ class _NoGpsWarning extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.location_off_rounded, color: Color(0xFFFF8A8E), size: 22),
-              SizedBox(width: 10),
+              const Icon(Icons.location_off_rounded, color: Color(0xFFFF8A8E), size: 22),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Местоположение не определено — клиенты не увидят вашу машину.',
-                  style: TextStyle(
+                  tr('Местоположение не определено — клиенты не увидят вашу машину.'),
+                  style: const TextStyle(
                     color: Color(0xFFF2C9CB),
                     fontSize: 14, fontWeight: FontWeight.w700, height: 1.35,
                   ),
@@ -257,20 +272,20 @@ class _NoGpsWarning extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             state.gpsRequesting
-                ? 'Запрашиваем местоположение…'
-                : 'Причина: ${state.gpsError ?? 'ответа от устройства ещё нет.'}',
+                ? tr('Запрашиваем местоположение…')
+                : trf('Причина: {e}', {'e': state.gpsError ?? tr('ответа от устройства ещё нет.')}),
             style: const TextStyle(color: Color(0xFFE8A9AC), fontSize: 13, height: 1.4),
           ),
           const SizedBox(height: 12),
           _DarkButton(
-            label: state.gpsRequesting ? 'Ждём ответа…' : 'Повторить',
+            label: state.gpsRequesting ? tr('Ждём ответа…') : tr('Повторить'),
             icon: Icons.refresh_rounded,
             onTap: state.gpsRequesting ? null : state.retryGps,
           ),
           if (kTestMode) ...[
             const SizedBox(height: 8),
             _DarkButton(
-              label: 'Поставить машину на карте вручную',
+              label: tr('Поставить машину на карте вручную'),
               icon: Icons.edit_location_alt_outlined,
               onTap: () => _openManualPlace(context),
             ),
@@ -293,8 +308,8 @@ class _ManualPlaceLink extends StatelessWidget {
         children: [
           Expanded(
             child: _DarkButton(
-              label: manual ? 'Тест: машина поставлена вручную — сдвинуть'
-                  : 'Тест: поставить машину вручную',
+              label: manual ? tr('Тест: машина поставлена вручную — сдвинуть')
+                  : tr('Тест: поставить машину вручную'),
               icon: Icons.edit_location_alt_outlined,
               onTap: () => _openManualPlace(context),
             ),
@@ -377,7 +392,7 @@ class _ManualPlaceScreenState extends State<_ManualPlaceScreen> {
           TaxiMap(
             controller: _map,
             centerPin: true,
-            pinLabel: 'Машина здесь',
+            pinLabel: tr('Машина здесь'),
             initialCenter: state.myLocation ?? state.region.center,
             places: state.places,
           ),
@@ -404,10 +419,10 @@ class _ManualPlaceScreenState extends State<_ManualPlaceScreen> {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: const Text(
-                    'Тест: двигайте карту, чтобы булавка стояла там, где машина',
+                  child: Text(
+                    tr('Тест: двигайте карту, чтобы булавка стояла там, где машина'),
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Color(0xFF14171F), fontSize: 14),
+                    style: const TextStyle(color: Color(0xFF14171F), fontSize: 14),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -424,8 +439,8 @@ class _ManualPlaceScreenState extends State<_ManualPlaceScreen> {
                       state.setManualDriverLocation(_map.camera.center);
                       Navigator.of(context).pop();
                     },
-                    child: const Text('Поставить машину здесь',
-                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                    child: Text(tr('Поставить машину здесь'),
+                        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
                   ),
                 ),
               ],
@@ -451,20 +466,21 @@ class _SubWarning extends StatelessWidget {
     final expired = !p.subscriptionActive;
     final name = p.name.isEmpty ? '' : '${p.name.split(' ').first}, ';
     final title = expired
-        ? 'Подписка закончилась'
+        ? tr('Подписка закончилась')
         : days == 0
-            ? 'Подписка заканчивается сегодня'
-            : 'Подписка заканчивается';
-    final when = days == 1 ? 'завтра' : 'через $days дня';
+            ? tr('Подписка заканчивается сегодня')
+            : tr('Подписка заканчивается');
+    final when = days == 1 ? tr('завтра') : trf('через {d} дня', {'d': days});
     final s = state.settings;
-    final pay = 'Оплатите ${formatPrice(s.subscriptionWeek)} в неделю или '
-        '${formatPrice(s.subscriptionMonth)} в месяц через Kaspi на счёт ИП '
-        'и сообщите администратору.';
+    final pay = trf(
+        'Оплатите {w} в неделю или {m} в месяц через Kaspi на счёт ИП '
+        'и сообщите администратору.',
+        {'w': formatPrice(s.subscriptionWeek), 'm': formatPrice(s.subscriptionMonth)});
     final text = expired
-        ? '${name}заказы не приходят, пока подписка не продлена. $pay'
+        ? '$name${tr('заказы не приходят, пока подписка не продлена.')} $pay'
         : days == 0
-            ? '${name}сегодня последний день подписки. $pay'
-            : '${name}ваша подписка заканчивается $when. $pay';
+            ? '$name${tr('сегодня последний день подписки.')} $pay'
+            : '$name${trf('ваша подписка заканчивается {when}.', {'when': when})} $pay';
     final bad = expired || days == 0;
 
     return Container(
@@ -528,8 +544,8 @@ class _EarningsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Сегодня',
-              style: TextStyle(
+          Text(tr('Сегодня'),
+              style: const TextStyle(
                 color: Color(0xFFA3ABB6),
                 fontSize: 13, fontWeight: FontWeight.w500,
               )),
@@ -542,10 +558,10 @@ class _EarningsCard extends StatelessWidget {
               )),
           const SizedBox(height: 14),
           Row(
-            children: const [
-              Expanded(child: _EarnStat(label: 'Поездок', value: '9')),
-              Expanded(child: _EarnStat(label: 'Часов', value: '6,5')),
-              Expanded(child: _EarnStat(label: 'Рейтинг', value: '4,9 ★')),
+            children: [
+              Expanded(child: _EarnStat(label: tr('Поездок'), value: '9')),
+              Expanded(child: _EarnStat(label: tr('Часов'), value: '6,5')),
+              Expanded(child: _EarnStat(label: tr('Рейтинг'), value: '4,9 ★')),
             ],
           ),
         ],
@@ -610,18 +626,18 @@ class _WaitingCard extends StatelessWidget {
                 color: Color(0xFFFFD12E), size: 24),
           ),
           const SizedBox(width: 14),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Ждём заказ',
-                    style: TextStyle(
+                Text(tr('Ждём заказ'),
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16, fontWeight: FontWeight.w700,
                     )),
-                SizedBox(height: 3),
-                Text('Вы первый в очереди в вашем районе',
-                    style: TextStyle(
+                const SizedBox(height: 3),
+                Text(tr('Вы первый в очереди в вашем районе'),
+                    style: const TextStyle(
                       color: Color(0xFFC3C8D0),
                       fontSize: 13.5,
                     )),
@@ -658,18 +674,18 @@ class _OfflineCard extends StatelessWidget {
                 color: Color(0xFF5E6571), size: 24),
           ),
           const SizedBox(width: 14),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Вы не в сети',
-                    style: TextStyle(
+                Text(tr('Вы не в сети'),
+                    style: const TextStyle(
                       color: Color(0xFF5E6571),
                       fontSize: 16, fontWeight: FontWeight.w700,
                     )),
-                SizedBox(height: 3),
-                Text('Включите режим «На линии», чтобы получать заказы',
-                    style: TextStyle(
+                const SizedBox(height: 3),
+                Text(tr('Включите режим «На линии», чтобы получать заказы'),
+                    style: const TextStyle(
                       color: Color(0xFF5E6571),
                       fontSize: 13.5,
                     )),
@@ -695,10 +711,10 @@ String _priceText(int p) {
 
 String _tariffLabel(String t) => switch (t) {
       'border'   => 'Ушарал',
-      'whole'    => 'Вся машина',
-      'delivery' => 'Доставка',
-      'cargo'    => 'Грузовое',
-      _          => 'Посёлок',
+      'whole'    => tr('Вся машина'),
+      'delivery' => tr('Доставка'),
+      'cargo'    => tr('Грузовое'),
+      _          => tr('Посёлок'),
     };
 
 class _OfferCard extends StatefulWidget {
@@ -770,8 +786,8 @@ class _OfferCardState extends State<_OfferCard> {
                 child: Text(
                     _cargo
                         ? (order.clientPrice == null
-                            ? 'Цену предложите вы'
-                            : 'Клиент: ${_priceText(order.clientPrice!)}')
+                            ? tr('Цену предложите вы')
+                            : trf('Клиент: {p}', {'p': _priceText(order.clientPrice!)}))
                         : _priceText(order.price),
                     style: TextStyle(
                       color: const Color(0xFF14171F),
@@ -826,21 +842,21 @@ class _OfferCardState extends State<_OfferCard> {
           _OfferRoute(from: order.from, to: order.to),
           const SizedBox(height: 8),
           Text(
-            '${order.clientName.isEmpty ? 'Клиент' : order.clientName} · '
-            '${order.payment == 'kaspi' ? 'Kaspi' : 'Наличные'}',
+            '${order.clientName.isEmpty ? tr('Клиент') : order.clientName} · '
+            '${order.payment == 'kaspi' ? 'Kaspi' : tr('Наличные')}',
             style: const TextStyle(color: Color(0xFF5E6571), fontSize: 14),
           ),
           if (order.comment.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text('${order.tariff == 'cargo' ? 'Груз' : 'Заказ'}: ${order.comment}',
+            Text('${order.tariff == 'cargo' ? tr('Груз') : tr('Заказ')}: ${order.comment}',
                 style: const TextStyle(
                   color: Color(0xFF14171F), fontSize: 15, fontWeight: FontWeight.w700,
                 )),
           ],
           if (_cargo) ...[
             const SizedBox(height: 14),
-            const Text('Ваша цена',
-                style: TextStyle(color: Color(0xFF5E6571), fontSize: 13, fontWeight: FontWeight.w600)),
+            Text(tr('Ваша цена'),
+                style: const TextStyle(color: Color(0xFF5E6571), fontSize: 13, fontWeight: FontWeight.w600)),
             const SizedBox(height: 6),
             Row(
               children: [
@@ -893,8 +909,8 @@ class _OfferCardState extends State<_OfferCard> {
                       borderRadius: BorderRadius.circular(16),
                     ),
                     alignment: Alignment.center,
-                    child: const Text('Пропустить',
-                        style: TextStyle(
+                    child: Text(tr('Пропустить'),
+                        style: const TextStyle(
                           color: Color(0xFF14171F),
                           fontSize: 16, fontWeight: FontWeight.w700,
                         )),
@@ -921,7 +937,7 @@ class _OfferCardState extends State<_OfferCard> {
                       borderRadius: BorderRadius.circular(16),
                     ),
                     alignment: Alignment.center,
-                    child: Text(_cargo ? 'Предложить цену' : 'Принять',
+                    child: Text(_cargo ? tr('Предложить цену') : tr('Принять'),
                         style: const TextStyle(
                           color: Color(0xFF111317),
                           fontSize: 16, fontWeight: FontWeight.w700,
@@ -1003,9 +1019,9 @@ class _ActiveRideCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.read<AppState>();
     final (title, action) = switch (order.status) {
-      'arrived' => ('Ждёте клиента', 'Поехали'),
-      'riding'  => ('В пути', 'Завершить'),
-      _         => ('Едете к клиенту', 'Я на месте'),
+      'arrived' => (tr('Ждёте клиента'), tr('Поехали')),
+      'riding'  => (tr('В пути'), tr('Завершить')),
+      _         => (tr('Едете к клиенту'), tr('Я на месте')),
     };
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -1035,13 +1051,13 @@ class _ActiveRideCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '${order.clientName.isEmpty ? 'Клиент' : order.clientName} · '
-            '${order.payment == 'kaspi' ? 'Kaspi' : 'Наличные'}',
+            '${order.clientName.isEmpty ? tr('Клиент') : order.clientName} · '
+            '${order.payment == 'kaspi' ? 'Kaspi' : tr('Наличные')}',
             style: const TextStyle(color: Color(0xFFA3ABB6), fontSize: 14),
           ),
           if (order.comment.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text('${order.tariff == 'cargo' ? 'Груз' : 'Заказ'}: ${order.comment}',
+            Text('${order.tariff == 'cargo' ? tr('Груз') : tr('Заказ')}: ${order.comment}',
                 style: const TextStyle(
                   color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700,
                 )),
@@ -1049,8 +1065,8 @@ class _ActiveRideCard extends StatelessWidget {
           if (order.clientPhone.isNotEmpty) ...[
             const SizedBox(height: 4),
             SelectableText(
-              'Телефон клиента: ${order.clientPhone}'
-              '${order.createdBy == 'manager' ? ' · заказ по звонку' : ''}',
+              '${trf('Телефон клиента: {p}', {'p': order.clientPhone})}'
+              '${order.createdBy == 'manager' ? ' · ${tr('заказ по звонку')}' : ''}',
               style: const TextStyle(
                 color: Color(0xFFFFD98A), fontSize: 15, fontWeight: FontWeight.w700,
               ),
@@ -1067,8 +1083,8 @@ class _ActiveRideCard extends StatelessWidget {
           ),
           if (order.status == 'arrived' && order.clientComingOut) ...[
             const SizedBox(height: 10),
-            const Text('Клиент выходит',
-                style: TextStyle(
+            Text(tr('Клиент выходит'),
+                style: const TextStyle(
                   color: Color(0xFFFFD12E),
                   fontSize: 15, fontWeight: FontWeight.w700,
                 )),
@@ -1087,8 +1103,8 @@ class _ActiveRideCard extends StatelessWidget {
                 alignment: Alignment.center,
                 child: Text(
                   state.simulating
-                      ? '■  Остановить демо-поездку'
-                      : '▶  Демо: поехать к клиенту',
+                      ? '■  ${tr('Остановить демо-поездку')}'
+                      : '▶  ${tr('Демо: поехать к клиенту')}',
                   style: const TextStyle(
                     color: Color(0xFFFFD98A),
                     fontSize: 14, fontWeight: FontWeight.w600,
@@ -1112,8 +1128,8 @@ class _ActiveRideCard extends StatelessWidget {
                         border: Border.all(color: const Color(0xFF2A2F37)),
                       ),
                       alignment: Alignment.center,
-                      child: const Text('Отменить',
-                          style: TextStyle(
+                      child: Text(tr('Отменить'),
+                          style: const TextStyle(
                             color: Color(0xFFD93F44),
                             fontSize: 16, fontWeight: FontWeight.w700,
                           )),
