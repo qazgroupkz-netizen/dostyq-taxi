@@ -366,7 +366,7 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
               style: TextStyle(color: context.ink, fontSize: 16, fontWeight: FontWeight.w700)),
           Text(bytes != null ? 'Готово · заменить' : 'Сфотографировать',
               style: TextStyle(
-                color: bytes != null ? context.taxi : context.muted,
+                color: bytes != null ? context.accent : context.muted,
                 fontSize: 14.5, fontWeight: FontWeight.w600,
               )),
         ],

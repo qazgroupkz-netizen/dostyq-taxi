@@ -26,8 +26,8 @@ class DriverScreen extends StatelessWidget {
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF0F1115),
         colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF2DB896),
-          onPrimary: Color(0xFF06231C),
+          primary: Color(0xFFFFD12E),
+          onPrimary: Color(0xFF111317),
           surface: Color(0xFF181B21),
         ),
       ),
@@ -43,7 +43,7 @@ class _DriverBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     const bg   = Color(0xFF0F1115);
-    const taxi = Color(0xFF2DB896);
+    const taxi = Color(0xFFFFD12E);
 
     return Scaffold(
       backgroundColor: bg,
@@ -165,7 +165,7 @@ class _DriverBody extends StatelessWidget {
                             ),
                             child: Text(
                               'Ваши цены отправлены (${state.waitingBids}). Если клиент выберет вас — заказ откроется со звуком.',
-                              style: const TextStyle(color: Color(0xFF7FDCC4), fontSize: 13.5, height: 1.4),
+                              style: const TextStyle(color: Color(0xFFFFD98A), fontSize: 13.5, height: 1.4),
                             ),
                           ),
 
@@ -317,12 +317,12 @@ class _DarkButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: const Color(0xFF7FDCC4), size: 20),
+            Icon(icon, color: const Color(0xFFFFD98A), size: 20),
             const SizedBox(width: 10),
             Flexible(
               child: Text(label,
                   style: TextStyle(
-                    color: onTap == null ? const Color(0xFF5E6571) : const Color(0xFF7FDCC4),
+                    color: onTap == null ? const Color(0xFF5E6571) : const Color(0xFFFFD98A),
                     fontSize: 14.5, fontWeight: FontWeight.w600,
                   )),
             ),
@@ -399,7 +399,7 @@ class _ManualPlaceScreenState extends State<_ManualPlaceScreen> {
                   height: 56,
                   child: FilledButton(
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF0E7C66),
+                      backgroundColor: const Color(0xFFFFD12E),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16)),
                     ),
@@ -503,10 +503,10 @@ class _EarningsCard extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF1A2E28), Color(0xFF0F1A16)],
+          colors: [Color(0xFF262A31), Color(0xFF17191E)],
         ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFF24614F).withOpacity(.5)),
+        border: Border.all(color: const Color(0xFF6B5A1E).withOpacity(.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -586,11 +586,11 @@ class _WaitingCard extends StatelessWidget {
           Container(
             width: 48, height: 48,
             decoration: BoxDecoration(
-              color: const Color(0xFF2DB896).withOpacity(.12),
+              color: const Color(0xFFFFD12E).withOpacity(.12),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.wifi_tethering_rounded,
-                color: Color(0xFF2DB896), size: 24),
+                color: Color(0xFFFFD12E), size: 24),
           ),
           const SizedBox(width: 14),
           const Expanded(
@@ -768,12 +768,12 @@ class _OfferCardState extends State<_OfferCard> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 9, vertical: 6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE3F2EE),
+                      color: const Color(0xFFFFF6D1),
                       borderRadius: BorderRadius.circular(9),
                     ),
                     child: Text(_tariffLabel(order.tariff),
                         style: const TextStyle(
-                          color: Color(0xFF0A5C4C),
+                          color: Color(0xFF6B5200),
                           fontSize: 12.5, fontWeight: FontWeight.w700,
                         )),
                   ),
@@ -788,7 +788,7 @@ class _OfferCardState extends State<_OfferCard> {
                           value: progress,
                           backgroundColor: const Color(0xFFE1E4DE),
                           color: progress > .3
-                              ? const Color(0xFF0E7C66)
+                              ? const Color(0xFFFFD12E)
                               : const Color(0xFFD93F44),
                           strokeWidth: 4,
                         ),
@@ -900,13 +900,13 @@ class _OfferCardState extends State<_OfferCard> {
                   child: Container(
                     height: 54,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0E7C66),
+                      color: const Color(0xFFFFD12E),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     alignment: Alignment.center,
                     child: Text(_cargo ? 'Предложить цену' : 'Принять',
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: Color(0xFF111317),
                           fontSize: 16, fontWeight: FontWeight.w700,
                         )),
                   ),
@@ -961,7 +961,7 @@ class _OfferRouteRow extends StatelessWidget {
             : Container(
                 width: 10, height: 10,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0E7C66),
+                  color: const Color(0xFFFFD12E),
                   borderRadius: BorderRadius.circular(3),
                 )),
         const SizedBox(width: 12),
@@ -996,7 +996,7 @@ class _ActiveRideCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF181B21),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFF24614F)),
+        border: Border.all(color: const Color(0xFF6B5A1E)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1011,7 +1011,7 @@ class _ActiveRideCard extends StatelessWidget {
                   )),
               Text(_priceText(order.price),
                   style: const TextStyle(
-                    color: Color(0xFF2DB896),
+                    color: Color(0xFFFFD12E),
                     fontSize: 18, fontWeight: FontWeight.w800,
                   )),
             ],
@@ -1035,7 +1035,7 @@ class _ActiveRideCard extends StatelessWidget {
               'Телефон клиента: ${order.clientPhone}'
               '${order.createdBy == 'manager' ? ' · заказ по звонку' : ''}',
               style: const TextStyle(
-                color: Color(0xFF7FDCC4), fontSize: 15, fontWeight: FontWeight.w700,
+                color: Color(0xFFFFD98A), fontSize: 15, fontWeight: FontWeight.w700,
               ),
             ),
           ],
@@ -1052,7 +1052,7 @@ class _ActiveRideCard extends StatelessWidget {
             const SizedBox(height: 10),
             const Text('Клиент выходит',
                 style: TextStyle(
-                  color: Color(0xFF2DB896),
+                  color: Color(0xFFFFD12E),
                   fontSize: 15, fontWeight: FontWeight.w700,
                 )),
           ],
@@ -1073,7 +1073,7 @@ class _ActiveRideCard extends StatelessWidget {
                       ? '■  Остановить демо-поездку'
                       : '▶  Демо: поехать к клиенту',
                   style: const TextStyle(
-                    color: Color(0xFF7FDCC4),
+                    color: Color(0xFFFFD98A),
                     fontSize: 14, fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -1112,13 +1112,13 @@ class _ActiveRideCard extends StatelessWidget {
                   child: Container(
                     height: 54,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2DB896),
+                      color: const Color(0xFFFFD12E),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     alignment: Alignment.center,
                     child: Text(action,
                         style: const TextStyle(
-                          color: Color(0xFF06231C),
+                          color: Color(0xFF111317),
                           fontSize: 16, fontWeight: FontWeight.w700,
                         )),
                   ),
@@ -1143,7 +1143,7 @@ class _Toggle extends StatelessWidget {
       duration: const Duration(milliseconds: 200),
       width: 50, height: 30,
       decoration: BoxDecoration(
-        color: isOn ? const Color(0xFF2DB896) : const Color(0xFF3A404A),
+        color: isOn ? const Color(0xFFFFD12E) : const Color(0xFF3A404A),
         borderRadius: BorderRadius.circular(15),
       ),
       child: Padding(

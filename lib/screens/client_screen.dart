@@ -99,13 +99,13 @@ class _ClientScreenState extends State<ClientScreen> {
             for (final r in state.regions)
               ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-                leading: Icon(Icons.location_city_rounded, color: ctx.taxi),
+                leading: Icon(Icons.location_city_rounded, color: ctx.accent),
                 title: Text(r.name,
                     style: TextStyle(
                       color: ctx.ink, fontSize: 17, fontWeight: FontWeight.w600,
                     )),
                 trailing: r.id == state.regionId
-                    ? Icon(Icons.check_rounded, color: ctx.taxi)
+                    ? Icon(Icons.check_rounded, color: ctx.accent)
                     : null,
                 onTap: () {
                   Navigator.of(ctx).pop();
@@ -375,7 +375,7 @@ class _ClientScreenState extends State<ClientScreen> {
                 const SizedBox(height: 8),
                 _MapFab(
                   icon: Icons.my_location_rounded,
-                  color: context.taxi,
+                  color: context.accent,
                   onTap: () => _goToMe(state),
                 ),
               ],
@@ -540,7 +540,7 @@ class _HomePanel extends StatelessWidget {
               TextButton(
                 onPressed: () => openSearch(context, forFrom: true),
                 style: TextButton.styleFrom(
-                  foregroundColor: context.taxi,
+                  foregroundColor: context.accent,
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                 ),
                 child: const Text('Изменить',
@@ -746,7 +746,7 @@ class _CollapsedHomePanel extends StatelessWidget {
                 child: Text(
                   '${state.tariffName} · ${state.tariffPrice}',
                   style: TextStyle(
-                    color: context.taxi,
+                    color: context.accent,
                     fontSize: 14, fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -845,7 +845,7 @@ class _SeekPanelState extends State<_SeekPanel>
                           shape: BoxShape.circle,
                         ),
                         child: Icon(Icons.directions_car,
-                            color: context.taxi, size: 24),
+                            color: context.accent, size: 24),
                       ),
                     ],
                   ),
@@ -938,7 +938,7 @@ class _BidTile extends StatelessWidget {
         children: [
           CircleAvatar(
             backgroundColor: context.taxiSft,
-            child: Icon(Icons.local_shipping_rounded, color: context.taxi, size: 20),
+            child: Icon(Icons.local_shipping_rounded, color: context.accent, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1293,7 +1293,7 @@ class _RatePanelState extends State<_RatePanel> {
           alignment: Alignment.center,
           child: Text(_initial(state.activeOrder?.driverName),
               style: TextStyle(
-                color: context.taxi,
+                color: context.accent,
                 fontSize: 28, fontWeight: FontWeight.w800,
               )),
         ),
@@ -1346,7 +1346,7 @@ class _RatePanelState extends State<_RatePanel> {
                   ),
                   child: Text(tagLabels[i],
                       style: TextStyle(
-                        color: sel ? context.taxi : context.ink,
+                        color: sel ? context.accent : context.ink,
                         fontSize: 14, fontWeight: FontWeight.w600,
                       )),
                 ),
@@ -1465,7 +1465,7 @@ class _DriverRow extends StatelessWidget {
                 alignment: Alignment.center,
                 child: Text(_initial(driverName),
                     style: TextStyle(
-                      color: context.taxi,
+                      color: context.accent,
                       fontSize: 19, fontWeight: FontWeight.w800,
                     )),
               ),
@@ -1996,7 +1996,7 @@ class _SideDrawer extends StatelessWidget {
                     children: [
                       Text('ТЕМА ОФОРМЛЕНИЯ',
                           style: TextStyle(
-                            color: context.taxi,
+                            color: context.accent,
                             fontSize: 12, fontWeight: FontWeight.w700,
                             letterSpacing: .08 * 12,
                           )),
@@ -2041,7 +2041,7 @@ class _SideDrawer extends StatelessWidget {
                 // Демо-примечание
                 Text('Демо-прототип. Имена, номера машин и цены — примеры.',
                     style: TextStyle(
-                      color: context.taxi,
+                      color: context.accent,
                       fontSize: 12, height: 1.5,
                     )),
               ],
@@ -2102,7 +2102,7 @@ class _DrawerItem extends StatelessWidget {
                   ),
                   child: Text(badge!,
                       style: TextStyle(
-                        color: context.taxi,
+                        color: context.accent,
                         fontSize: 11.5, fontWeight: FontWeight.w700,
                       )),
                 ),
@@ -2280,7 +2280,7 @@ class _PayOption extends StatelessWidget {
                     )),
               ),
               if (selected)
-                Icon(Icons.check_circle_rounded, color: context.taxi),
+                Icon(Icons.check_circle_rounded, color: context.accent),
             ],
           ),
         ),
@@ -2489,7 +2489,7 @@ class _WhereField extends StatelessWidget {
                     ? '…'
                     : '${formatDistance(r.meters)} · ${r.minutes} мин',
                 style: TextStyle(
-                  color: context.taxi,
+                  color: context.accent,
                   fontSize: 13.5, fontWeight: FontWeight.w700,
                 ),
               ),
@@ -2555,7 +2555,7 @@ class _PickPanel extends StatelessWidget {
                     if (state.pickNear != null)
                       Text('Рядом: ${state.pickNear}',
                           style: TextStyle(
-                            color: context.taxi,
+                            color: context.accent,
                             fontSize: 13, fontWeight: FontWeight.w600,
                           )),
                   ],

@@ -6,7 +6,9 @@ import '../data/places.dart';
 
 const dostykCenter = LatLng(45.25606, 82.49278);
 
-const _jade = Color(0xFF0E7C66);
+// Жёлто-чёрный стиль: жёлтый — акцент меток, маршрут — чёрный (жёлтый плохо виден на карте).
+const _jade = Color(0xFFFFD12E);
+const _routeColor = Color(0xFF111317);
 const _ink = Color(0xFF111317);
 
 class TaxiMap extends StatefulWidget {
@@ -128,13 +130,13 @@ class _TaxiMapState extends State<TaxiMap> {
             if (route != null && route.length > 1)
               PolylineLayer(polylines: [
                 Polyline(points: route, color: Colors.white, strokeWidth: 10),
-                Polyline(points: route, color: _jade, strokeWidth: 6),
+                Polyline(points: route, color: _routeColor, strokeWidth: 6),
               ]),
             if (widget.car != null && widget.pickup != null)
               PolylineLayer(polylines: [
                 Polyline(
                   points: [widget.car!, widget.pickup!],
-                  color: _jade.withOpacity(.85),
+                  color: _routeColor.withOpacity(.85),
                   strokeWidth: 4,
                   pattern: StrokePattern.dashed(segments: const [10, 7]),
                 ),
@@ -384,7 +386,7 @@ class _IdleCar extends StatelessWidget {
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(.2), blurRadius: 4)],
       ),
       alignment: Alignment.center,
-      child: const Icon(Icons.local_taxi_rounded, color: _jade, size: 18),
+      child: const Icon(Icons.local_taxi_rounded, color: _ink, size: 18),
     );
   }
 }
@@ -405,7 +407,7 @@ class _CarMarker extends StatelessWidget {
         ],
       ),
       alignment: Alignment.center,
-      child: const Icon(Icons.local_taxi_rounded, color: _jade, size: 26),
+      child: const Icon(Icons.local_taxi_rounded, color: _ink, size: 26),
     );
   }
 }

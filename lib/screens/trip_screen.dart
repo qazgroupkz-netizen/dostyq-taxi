@@ -245,7 +245,7 @@ class _TripCard extends StatelessWidget {
                   child: Text(
                     isFull ? 'Мест нет' : '$free / 4',
                     style: TextStyle(
-                      color: isFull ? context.muted : context.taxi,
+                      color: isFull ? context.muted : context.accent,
                       fontSize: 14, fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -261,7 +261,7 @@ class _TripCard extends StatelessWidget {
                   child: Text(
                     _whole(context),
                     style: TextStyle(
-                      color: context.taxi,
+                      color: context.accent,
                       fontSize: 14, fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -547,7 +547,7 @@ class _SeatCircle extends StatelessWidget {
       fg = context.muted;
     } else if (wholeMode) {
       bg = context.taxiSft;
-      fg = context.taxi;
+      fg = context.accent;
     } else if (booked) {
       bg = context.dSoft;
       fg = context.danger;
@@ -556,7 +556,7 @@ class _SeatCircle extends StatelessWidget {
       fg = context.onTaxi;
     } else {
       bg = context.taxiSft;
-      fg = context.taxi;
+      fg = context.accent;
     }
 
     return GestureDetector(
@@ -609,7 +609,7 @@ class _BookedSuccess extends StatelessWidget {
                 color: context.taxiSft,
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.check_rounded, color: context.taxi, size: 44),
+              child: Icon(Icons.check_rounded, color: context.accent, size: 44),
             ),
             const SizedBox(height: 20),
             Text(

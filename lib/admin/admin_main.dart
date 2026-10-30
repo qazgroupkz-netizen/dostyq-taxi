@@ -47,7 +47,7 @@ class AdminApp extends StatelessWidget {
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snap) {
           const loading = Scaffold(
-            body: Center(child: CircularProgressIndicator(color: Color(0xFF0E7C66))),
+            body: Center(child: CircularProgressIndicator(color: Color(0xFF111317))),
           );
           if (snap.connectionState == ConnectionState.waiting) return loading;
           if (snap.data == null) return const AuthScreen();

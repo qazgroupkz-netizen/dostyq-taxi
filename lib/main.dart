@@ -51,7 +51,7 @@ class DostyqApp extends StatelessWidget {
         builder: (context, snap) {
           const loading = Scaffold(
             body: Center(
-              child: CircularProgressIndicator(color: Color(0xFF0E7C66)),
+              child: CircularProgressIndicator(color: Color(0xFF111317)),
             ),
           );
           if (snap.connectionState == ConnectionState.waiting) return loading;

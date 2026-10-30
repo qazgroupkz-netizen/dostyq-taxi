@@ -145,7 +145,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.location_on_outlined, color: context.taxi, size: 22),
+                        Icon(Icons.location_on_outlined, color: context.accent, size: 22),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -180,7 +180,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         ? 'ПОДСКАЗКИ'
                         : _forFrom ? 'ОТКУДА ВАС ЗАБРАТЬ' : 'МЕСТА В ДОСТЫКЕ',
                     style: TextStyle(
-                      color: context.taxi,
+                      color: context.accent,
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                       letterSpacing: .08 * 12,
@@ -192,7 +192,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     name: 'Моё местоположение',
                     sub: 'По GPS',
                     icon: Icons.near_me_rounded,
-                    iconColor: context.taxi,
+                    iconColor: context.accent,
                     onTap: _useGps,
                   ),
                 ...results.map((p) => _PlaceItem(
