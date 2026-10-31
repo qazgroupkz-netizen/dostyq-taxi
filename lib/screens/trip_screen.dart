@@ -452,7 +452,9 @@ class _TripSheetState extends State<_TripSheet> {
   }
 }
 
-/// Схема машины: водитель и место 1 спереди, места 2–4 сзади.
+enum _SeatKind { free, taken, mine, picked, driver }
+
+/// Машина сверху: капот впереди, водитель с рулём и место 1, сзади места 2–4.
 class _SeatMap extends StatelessWidget {
   final Trip trip;
   final String uid;
@@ -460,77 +462,261 @@ class _SeatMap extends StatelessWidget {
   final ValueChanged<int>? onPick;
   const _SeatMap({required this.trip, required this.uid, required this.picked, this.onPick});
 
-  Widget _seat(BuildContext context, int n) {
+  static const _w = 220.0;
+  static const _h = 340.0;
+
+  _SeatKind _kind(int n) {
     final b = trip.seats[n];
-    final mine = b?.clientId == uid;
-    final taken = (b != null && !mine) || trip.whole != null;
-    final sel = picked == n;
-    final Color bg = mine || sel ? context.taxi : taken ? context.line2C : context.surface;
-    return GestureDetector(
-      onTap: taken || mine || onPick == null ? null : () => onPick!(n),
-      child: Container(
-        width: 64, height: 64,
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: sel ? context.ink : Colors.transparent, width: 2),
-        ),
-        alignment: Alignment.center,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(taken || mine ? Icons.person_rounded : Icons.event_seat_outlined,
-                color: mine || sel ? context.onTaxi : context.muted),
-            Text(mine ? tr('Вы') : '$n',
-                style: TextStyle(
-                  color: mine || sel ? context.onTaxi : context.ink,
-                  fontWeight: FontWeight.w700,
-                )),
-          ],
+    if (b?.clientId == uid) return _SeatKind.mine;
+    if (b != null || trip.whole != null) return _SeatKind.taken;
+    return picked == n ? _SeatKind.picked : _SeatKind.free;
+  }
+
+  Widget _seat(BuildContext context, int n, double left, double top) {
+    final k = _kind(n);
+    final tappable = (k == _SeatKind.free || k == _SeatKind.picked) && onPick != null;
+    return Positioned(
+      left: left,
+      top: top,
+      child: Semantics(
+        button: tappable,
+        label: trf('Место № {n}', {'n': n}),
+        child: GestureDetector(
+          onTap: tappable ? () => onPick!(n) : null,
+          child: _SeatTile(kind: k, label: k == _SeatKind.mine ? tr('Вы') : '$n'),
         ),
       ),
     );
   }
 
+  Widget _legend(BuildContext context, _SeatKind k, String text) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 16,
+            height: 16,
+            decoration: BoxDecoration(
+              color: _SeatTile.fill(context, k),
+              borderRadius: BorderRadius.circular(5),
+              border: Border.all(color: _SeatTile.edge(context, k), width: 1.5),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(text, style: TextStyle(color: context.muted, fontSize: 13)),
+        ],
+      );
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
         color: context.bg,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: context.lineC, width: 2),
       ),
       child: Column(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              Container(
-                width: 64, height: 64,
-                decoration: BoxDecoration(
-                  color: context.surface,
-                  borderRadius: BorderRadius.circular(16),
+          Text(tr('Перед машины'), style: TextStyle(color: context.muted, fontSize: 12)),
+          Icon(Icons.keyboard_arrow_up_rounded, color: context.muted, size: 18),
+          SizedBox(
+            width: _w,
+            height: _h,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: _CarPainter(
+                      body: context.surface,
+                      line: context.lineC,
+                      glass: context.ink.withOpacity(.10),
+                      wheel: context.ink,
+                    ),
+                  ),
                 ),
-                alignment: Alignment.center,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.trip_origin_rounded, color: context.muted),
-                    Text(tr('Водитель'), style: TextStyle(color: context.muted, fontSize: 10.5)),
-                  ],
+                // Водитель: руль перед креслом.
+                Positioned(
+                  left: 48,
+                  top: 128,
+                  child: CustomPaint(size: const Size(40, 14), painter: _WheelPainter(context.ink)),
                 ),
-              ),
-              _seat(context, 1),
-            ],
+                const Positioned(
+                  left: 42,
+                  top: 146,
+                  child: _SeatTile(kind: _SeatKind.driver, label: ''),
+                ),
+                _seat(context, 1, 122, 146),
+                _seat(context, 2, 30, 226),
+                _seat(context, 3, 85, 226),
+                _seat(context, 4, 140, 226),
+              ],
+            ),
           ),
-          const SizedBox(height: 14),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [_seat(context, 2), _seat(context, 3), _seat(context, 4)],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 14,
+            runSpacing: 6,
+            alignment: WrapAlignment.center,
+            children: [
+              _legend(context, _SeatKind.free, tr('Свободно')),
+              _legend(context, _SeatKind.taken, tr('Занято')),
+              _legend(context, _SeatKind.mine, tr('Ваше место')),
+            ],
           ),
         ],
       ),
     );
   }
+}
+
+/// Кресло сверху: спинка и сиденье, внутри номер места, «Вы» или значок.
+class _SeatTile extends StatelessWidget {
+  final _SeatKind kind;
+  final String label;
+  const _SeatTile({required this.kind, required this.label});
+
+  static Color fill(BuildContext c, _SeatKind k) => switch (k) {
+        _SeatKind.free => c.paper,
+        _SeatKind.taken || _SeatKind.driver => c.line2C,
+        _SeatKind.mine || _SeatKind.picked => c.taxi,
+      };
+
+  static Color edge(BuildContext c, _SeatKind k) => switch (k) {
+        _SeatKind.free => c.lineC,
+        _SeatKind.picked => c.ink,
+        _SeatKind.mine => c.taxi,
+        _SeatKind.taken || _SeatKind.driver => c.line2C,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final onYellow = kind == _SeatKind.mine || kind == _SeatKind.picked;
+    final fg = onYellow ? context.onTaxi : kind == _SeatKind.free ? context.ink : context.muted;
+    final Widget inner = switch (kind) {
+      _SeatKind.driver => Text(tr('Водитель'), style: TextStyle(color: fg, fontSize: 9.5, fontWeight: FontWeight.w600)),
+      _SeatKind.taken => Icon(Icons.person_rounded, color: fg, size: 22),
+      _SeatKind.picked => Icon(Icons.check_rounded, color: fg, size: 24),
+      _ => Text(label, style: TextStyle(color: fg, fontSize: 18, fontWeight: FontWeight.w800)),
+    };
+    return SizedBox(
+      width: 50,
+      height: 64,
+      child: CustomPaint(
+        painter: _SeatPainter(fill(context, kind), edge(context, kind)),
+        child: Padding(
+          padding: const EdgeInsets.only(top: 14),
+          child: Center(child: inner),
+        ),
+      ),
+    );
+  }
+}
+
+class _SeatPainter extends CustomPainter {
+  final Color fill;
+  final Color edge;
+  _SeatPainter(this.fill, this.edge);
+
+  @override
+  void paint(Canvas canvas, Size s) {
+    final f = Paint()..color = fill;
+    final e = Paint()
+      ..color = edge
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    // Спинка сзади (внизу схемы), сиденье впереди.
+    final back = RRect.fromRectAndRadius(Rect.fromLTWH(3, s.height - 14, s.width - 6, 12), const Radius.circular(6));
+    final seat = RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, s.width, s.height - 12), const Radius.circular(12));
+    canvas.drawRRect(back, f);
+    canvas.drawRRect(back, e);
+    canvas.drawRRect(seat, f);
+    canvas.drawRRect(seat, e);
+  }
+
+  @override
+  bool shouldRepaint(_SeatPainter old) => old.fill != fill || old.edge != edge;
+}
+
+class _WheelPainter extends CustomPainter {
+  final Color color;
+  _WheelPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size s) {
+    final p = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+    canvas.drawRRect(RRect.fromRectAndRadius(Offset.zero & s, Radius.circular(s.height / 2)), p);
+    canvas.drawLine(Offset(s.width / 2, 2), Offset(s.width / 2, s.height - 2), p);
+  }
+
+  @override
+  bool shouldRepaint(_WheelPainter old) => old.color != color;
+}
+
+/// Кузов сверху: капот, лобовое и заднее стекло, зеркала, колёса.
+class _CarPainter extends CustomPainter {
+  final Color body;
+  final Color line;
+  final Color glass;
+  final Color wheel;
+  _CarPainter({required this.body, required this.line, required this.glass, required this.wheel});
+
+  @override
+  void paint(Canvas canvas, Size s) {
+    final w = Paint()..color = wheel;
+    for (final y in [62.0, 262.0]) {
+      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(8, y, 16, 46), const Radius.circular(6)), w);
+      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(s.width - 24, y, 16, 46), const Radius.circular(6)), w);
+    }
+    final mirror = Paint()..color = line;
+    canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(4, 118, 18, 10), const Radius.circular(5)), mirror);
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(s.width - 22, 118, 18, 10), const Radius.circular(5)), mirror);
+
+    final car = RRect.fromRectAndCorners(
+      Rect.fromLTWH(18, 4, s.width - 36, s.height - 8),
+      topLeft: const Radius.circular(58),
+      topRight: const Radius.circular(58),
+      bottomLeft: const Radius.circular(38),
+      bottomRight: const Radius.circular(38),
+    );
+    canvas.drawRRect(car, Paint()..color = body);
+    canvas.drawRRect(
+      car,
+      Paint()
+        ..color = line
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+
+    final g = Paint()..color = glass;
+    final windshield = Path()
+      ..moveTo(44, 120)
+      ..quadraticBezierTo(s.width / 2, 86, s.width - 44, 120)
+      ..lineTo(s.width - 52, 98)
+      ..quadraticBezierTo(s.width / 2, 72, 52, 98)
+      ..close();
+    canvas.drawPath(windshield, g);
+    final rear = Path()
+      ..moveTo(48, 302)
+      ..quadraticBezierTo(s.width / 2, 314, s.width - 48, 302)
+      ..lineTo(s.width - 54, 318)
+      ..quadraticBezierTo(s.width / 2, 328, 54, 318)
+      ..close();
+    canvas.drawPath(rear, g);
+    // Линия капота.
+    canvas.drawLine(
+      Offset(s.width / 2, 18),
+      Offset(s.width / 2, 66),
+      Paint()
+        ..color = line
+        ..strokeWidth = 1.5,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_CarPainter old) =>
+      old.body != body || old.line != line || old.glass != glass || old.wheel != wheel;
 }
