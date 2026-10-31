@@ -141,20 +141,10 @@ jobs:
           flutter build web --release -t lib/admin/admin_main.dart --base-href /dostyq-taxi/admin/ --web-renderer canvaskit --pwa-strategy none
           mv build/web build/admin_web
 
-      # Версия на своей базе (Supabase на alakoltaxi.kz) — /beta/ на время переезда.
-      - name: Build beta (own server)
-        run: |
-          flutter build web --release -t lib/admin/admin_main.dart --dart-define=SUPABASE=true --base-href /dostyq-taxi/beta/admin/ --web-renderer canvaskit --pwa-strategy none
-          mv build/web build/beta_admin
-          flutter build web --release --dart-define=SUPABASE=true --base-href /dostyq-taxi/beta/ --web-renderer canvaskit --pwa-strategy none
-          mv build/web build/beta_web
-          mv build/beta_admin build/beta_web/admin
-
       - name: Build web
         run: |
           flutter build web --release --base-href /dostyq-taxi/ --web-renderer canvaskit --pwa-strategy none
           mv build/admin_web build/web/admin
-          mv build/beta_web build/web/beta
           cp -r legal build/web/legal
 
       - name: Deploy to GitHub Pages

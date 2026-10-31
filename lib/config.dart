@@ -4,9 +4,9 @@ const kTestMode = true;
 /// Название сервиса. Районы (Достык, Ушарал…) показываются отдельно, под ним.
 const kBrand = 'ALAKOL TAXI';
 
-/// Своя база в Казахстане (Supabase на alakoltaxi.kz) вместо Firebase.
-/// Сборка с `--dart-define=SUPABASE=true` — версия /beta/ на время переезда.
-const kUseSupabase = bool.fromEnvironment('SUPABASE');
+/// Своя база в Казахстане (Supabase на alakoltaxi.kz) — основная с 31.10.2026.
+/// Старая версия на Firebase: сборка с `--dart-define=SUPABASE=false`.
+const kUseSupabase = bool.fromEnvironment('SUPABASE', defaultValue: true);
 
 const kSupabaseUrl = 'https://alakoltaxi.kz';
 
