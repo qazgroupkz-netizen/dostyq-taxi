@@ -12,6 +12,7 @@ import 'services/sound.dart';
 import 'screens/auth_screen.dart';
 import 'screens/client_screen.dart';
 import 'screens/driver_screen.dart';
+import 'widgets/splash.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,7 +59,12 @@ class DostyqApp extends StatelessWidget {
       themeMode: themeMode,
       builder: (context, child) => Listener(
         onPointerDown: (_) => unlockSound(),
-        child: child,
+        child: Stack(
+          children: [
+            if (child != null) child,
+            const Positioned.fill(child: SplashOverlay()),
+          ],
+        ),
       ),
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
