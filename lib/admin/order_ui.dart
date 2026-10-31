@@ -1,10 +1,58 @@
 import 'package:flutter/material.dart';
 import '../data/orders.dart';
 import '../theme.dart';
+import 'admin_ui.dart';
 
 String hm(DateTime? t) => t == null
     ? '--:--'
     : '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+/// «Сегодня, 14:05», «Вчера, 09:12» или «28.10, 18:40».
+String dayTime(DateTime? t) {
+  if (t == null) return '—';
+  final now = DateTime.now();
+  final d = DateTime(t.year, t.month, t.day);
+  final today = DateTime(now.year, now.month, now.day);
+  final day = d == today
+      ? 'Сегодня'
+      : d == today.subtract(const Duration(days: 1))
+          ? 'Вчера'
+          : '${t.day.toString().padLeft(2, '0')}.${t.month.toString().padLeft(2, '0')}';
+  return '$day, ${hm(t)}';
+}
+
+/// Короткий номер для поиска и разговора: последние 4 знака id.
+String shortNo(TaxiOrder o) =>
+    '#${(o.id.length > 4 ? o.id.substring(o.id.length - 4) : o.id).toUpperCase()}';
+
+String serviceName(String tariff) => switch (tariff) {
+      'local' => 'По посёлку',
+      'border' => 'Таможня · КПП',
+      'whole' => 'Межгород',
+      'delivery' => 'Доставка',
+      'cargo' => 'Грузовое',
+      _ => tariff,
+    };
+
+/// Статус заказа таблеткой с точкой (как в прототипе админки).
+class OrderPill extends StatelessWidget {
+  final String status;
+  const OrderPill({super.key, required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, _) = orderStatus(context, status);
+    final tone = switch (status) {
+      'searching' => PillTone.warn,
+      'accepted' || 'arrived' => PillTone.info,
+      'riding' => PillTone.violet,
+      'done' => PillTone.ok,
+      'cancelled' => PillTone.bad,
+      _ => PillTone.mute,
+    };
+    return StatusPill(label, tone);
+  }
+}
 
 (String, Color) orderStatus(BuildContext context, String s) => switch (s) {
       'searching' => ('Ищем машину', const Color(0xFFD97A00)),

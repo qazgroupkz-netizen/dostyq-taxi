@@ -12,6 +12,7 @@ import '../screens/auth_screen.dart';
 import '../config.dart';
 import '../state.dart';
 import '../theme.dart';
+import 'admin_ui.dart';
 import 'analytics_page.dart';
 import 'dispatch_page.dart';
 import 'drivers_page.dart';
@@ -142,17 +143,18 @@ class _AdminHomeState extends State<AdminHome> {
   int _page = 0;
   Timer? _clock;
 
+  // Порядок и группы — как в reference/admin-prototype.html.
   static final _all = <_Nav>[
+    (group: 'Обзор', icon: Icons.bar_chart_rounded, label: 'Аналитика',
+        page: const AnalyticsPage(), ownerOnly: true),
     (group: 'Оперативно', icon: Icons.headset_mic_outlined, label: 'Диспетчерская',
-        page: DispatchPage(), ownerOnly: false),
+        page: const DispatchPage(), ownerOnly: false),
     (group: 'Оперативно', icon: Icons.format_list_bulleted_rounded, label: 'Заказы',
-        page: OrdersPage(), ownerOnly: false),
+        page: const OrdersPage(), ownerOnly: false),
     (group: 'Оперативно', icon: Icons.domain_rounded, label: 'Межгород',
-        page: IntercityPage(), ownerOnly: false),
-    (group: 'Аналитика', icon: Icons.insights_rounded, label: 'Аналитика и финансы',
-        page: AnalyticsPage(), ownerOnly: true),
-    (group: 'Водители', icon: Icons.group_outlined, label: 'Водители и анкеты',
-        page: DriversPage(), ownerOnly: true),
+        page: const IntercityPage(), ownerOnly: false),
+    (group: 'Водители', icon: Icons.group_outlined, label: 'Водители',
+        page: const DriversPage(), ownerOnly: true),
     (group: 'Настройки', icon: Icons.place_outlined, label: 'Адреса',
         page: PlacesPage(), ownerOnly: true),
     (group: 'Настройки', icon: Icons.signpost_outlined, label: 'Улицы',
@@ -208,12 +210,20 @@ class _AdminHomeState extends State<AdminHome> {
               .length;
           final waiting =
               (oSnap.data ?? const <TaxiOrder>[]).where((o) => o.status == 'searching').length;
-          final counts = {'Диспетчерская': waiting, 'Водители и анкеты': pending};
+          final counts = {'Диспетчерская': waiting, 'Водители': pending};
+          void go(String label) {
+            final i = pages.indexWhere((p) => p.label == label);
+            if (i >= 0) setState(() => _page = i);
+          }
 
           final side = _Sidebar(
             pages: pages,
             selected: _page,
             counts: counts,
+            drivers: [
+              for (final d in dSnap.data ?? const <DriverProfile>[])
+                if (d.region == state.regionId) d,
+            ],
             onSelect: (i) {
               setState(() => _page = i);
               if (!wide) Navigator.of(context).maybePop();
@@ -221,7 +231,15 @@ class _AdminHomeState extends State<AdminHome> {
           );
           final content = Column(
             children: [
-              _Header(wide: wide),
+              _Header(
+                wide: wide,
+                alerts: waiting + pending,
+                onSearch: (q) {
+                  adminSearch.value = q;
+                  go('Заказы');
+                },
+                onBell: () => go(waiting > 0 || pending == 0 ? 'Диспетчерская' : 'Водители'),
+              ),
               Expanded(child: pages[_page].page),
             ],
           );
@@ -247,13 +265,58 @@ class _Sidebar extends StatelessWidget {
   final List<_Nav> pages;
   final int selected;
   final Map<String, int> counts;
+  final List<DriverProfile> drivers;
   final ValueChanged<int> onSelect;
   const _Sidebar({
     required this.pages,
     required this.selected,
     required this.counts,
+    required this.drivers,
     required this.onSelect,
   });
+
+  /// Карточка «Подписки водителей»: сколько одобренных водителей с активной подпиской.
+  Widget _subsCard() {
+    final approved = drivers.where((d) => d.approval == Approval.approved).toList();
+    final active = approved.where((d) => d.subscriptionActive).length;
+    final soon = approved.where((d) => (d.subscriptionDaysLeft ?? 99) <= 3 && d.subscriptionActive).length;
+    final share = approved.isEmpty ? 0.0 : active / approved.length;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(6, 14, 6, 0),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF262A31), Color(0xFF17191E)],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Подписки водителей',
+              style: TextStyle(color: AdminC.sideMuted, fontSize: 12, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          Text('$active из ${approved.length}',
+              style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: share,
+              minHeight: 8,
+              backgroundColor: const Color(0xFF2E323A),
+              color: AdminC.yellow,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(soon > 0 ? 'Заканчивается у $soon — напомните' : 'Активны и оплачены',
+              style: const TextStyle(color: AdminC.sideMuted, fontSize: 12)),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -353,7 +416,12 @@ class _Sidebar extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               const _RegionPicker(),
-              Expanded(child: ListView(children: items)),
+              Expanded(
+                child: ListView(children: [
+                  ...items,
+                  if (pages.any((p) => p.ownerOnly)) _subsCard(),
+                ]),
+              ),
               const Divider(color: AdminC.side2),
               Row(
                 children: [
@@ -381,7 +449,46 @@ class _Sidebar extends StatelessWidget {
 /// Шапка: приветствие, дата и время, район; справа — значок пользователя.
 class _Header extends StatelessWidget {
   final bool wide;
-  const _Header({required this.wide});
+  final int alerts;
+  final ValueChanged<String> onSearch;
+  final VoidCallback onBell;
+  const _Header({required this.wide, required this.alerts, required this.onSearch, required this.onBell});
+
+  Widget _bell(BuildContext context) => Material(
+        color: context.paper,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: context.lineC),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onBell,
+          child: SizedBox(
+            width: 42,
+            height: 42,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Icon(Icons.notifications_none_rounded, color: context.ink, size: 22),
+                if (alerts > 0)
+                  Positioned(
+                    top: 8,
+                    right: 9,
+                    child: Container(
+                      width: 9,
+                      height: 9,
+                      decoration: BoxDecoration(
+                        color: AdminC.bad,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: context.paper, width: 2),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
 
   static const _days = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
   static const _months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля',
@@ -425,6 +532,43 @@ class _Header extends StatelessWidget {
                 ],
               ),
             ),
+            if (wide) ...[
+              SizedBox(
+                width: 300,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: context.paper,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: context.lineC),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Row(
+                    children: [
+                      Icon(Icons.search_rounded, size: 18, color: context.muted),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          onSubmitted: onSearch,
+                          textInputAction: TextInputAction.search,
+                          style: TextStyle(color: context.ink, fontSize: 14),
+                          decoration: const InputDecoration(
+                            hintText: 'Поиск: заказ, водитель, телефон',
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            filled: false,
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+            ],
+            _bell(context),
+            const SizedBox(width: 12),
             Container(
               width: 42, height: 42,
               alignment: Alignment.center,
