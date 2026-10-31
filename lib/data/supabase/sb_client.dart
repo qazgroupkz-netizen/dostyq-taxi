@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase/supabase.dart';
 import '../../config.dart';
@@ -27,7 +28,7 @@ Future<void> initSupabase() async {
     if (session == null) {
       if (s.event == AuthChangeEvent.signedOut) prefs.remove(_sessionKey);
     } else {
-      prefs.setString(_sessionKey, session.persistSessionString);
+      prefs.setString(_sessionKey, jsonEncode(session.toJson()));
     }
   });
 }
