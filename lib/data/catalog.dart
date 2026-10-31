@@ -123,6 +123,7 @@ class FirestoreCatalogRepository implements CatalogRepository {
       approx: m['approx'] as bool? ?? false,
       // Места, добавленные до появления районов, — в Достыке.
       region: m['region'] as String? ?? defaultRegionId,
+      price: (m['price'] as num?)?.toInt(),
     );
   }
 
@@ -145,6 +146,7 @@ class FirestoreCatalogRepository implements CatalogRepository {
         'group': p.group,
         'approx': p.approx,
         'region': p.region,
+        'price': p.price,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 

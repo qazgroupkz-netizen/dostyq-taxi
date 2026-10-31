@@ -42,6 +42,9 @@ class Place {
   /// id района (см. regions.dart).
   final String region;
 
+  /// Своя цена поездки сюда или отсюда по посёлку (например, ТЛЦ — 2 000 ₸). null — обычная цена.
+  final int? price;
+
   const Place({
     required this.id,
     required this.name,
@@ -53,6 +56,7 @@ class Place {
     this.group,
     this.approx = false,
     this.region = 'dostyk',
+    this.price,
   });
 
   PlaceCategory get _cat => placeCategories[category] ?? placeCategories['other']!;
@@ -62,6 +66,7 @@ class Place {
   Place copyWith({
     String? name, String? sub, String? category, LatLng? point,
     List<String>? synonyms, bool? chip, String? group, bool? approx, String? region,
+    int? price, bool clearPrice = false,
   }) =>
       Place(
         id: id,
@@ -74,6 +79,7 @@ class Place {
         group: group ?? this.group,
         approx: approx ?? this.approx,
         region: region ?? this.region,
+        price: clearPrice ? null : price ?? this.price,
       );
 }
 

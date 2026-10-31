@@ -94,6 +94,7 @@ class SupabaseCatalogRepository implements CatalogRepository {
         group: m['group'] as String?,
         approx: m['approx'] as bool? ?? false,
         region: m['region'] as String? ?? defaultRegionId,
+        price: (m['price'] as num?)?.toInt(),
       );
 
   @override
@@ -116,6 +117,7 @@ class SupabaseCatalogRepository implements CatalogRepository {
         'group': p.group,
         'approx': p.approx,
         'region': p.region,
+        'price': p.price,
       });
 
   @override

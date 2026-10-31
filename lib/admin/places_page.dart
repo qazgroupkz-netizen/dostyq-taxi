@@ -19,6 +19,7 @@ class _PlacesPageState extends State<PlacesPage> {
   final _name = TextEditingController();
   final _sub = TextEditingController();
   final _syn = TextEditingController();
+  final _price = TextEditingController();
   final _search = TextEditingController();
 
   /// Редактируемое место; isNew — ещё не сохранено.
@@ -35,6 +36,7 @@ class _PlacesPageState extends State<PlacesPage> {
     _name.dispose();
     _sub.dispose();
     _syn.dispose();
+    _price.dispose();
     _search.dispose();
     super.dispose();
   }
@@ -46,6 +48,7 @@ class _PlacesPageState extends State<PlacesPage> {
       _name.text = p.name;
       _sub.text = p.sub;
       _syn.text = p.synonyms.join(', ');
+      _price.text = p.price?.toString() ?? '';
       _category = placeCategories.containsKey(p.category) ? p.category : 'other';
       _chip = p.chip;
       _approx = p.approx;
@@ -86,6 +89,8 @@ class _PlacesPageState extends State<PlacesPage> {
           .where((s) => s.isNotEmpty)
           .toList(),
       chip: _chip,
+      price: int.tryParse(_price.text.replaceAll(RegExp(r'[^0-9]'), '')),
+      clearPrice: _price.text.trim().isEmpty,
       group: _category == 'school' ? 'school' : null,
       // Поставили точку руками — значит, место уточнено.
       approx: moved ? false : _approx,
@@ -381,6 +386,12 @@ class _PlacesPageState extends State<PlacesPage> {
         TextField(
           controller: _syn,
           decoration: deco('Другие названия через запятую: аурухана, больничка'),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _price,
+          keyboardType: TextInputType.number,
+          decoration: deco('Своя цена поездки сюда, ₸ (пусто — обычная цена)'),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,

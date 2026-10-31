@@ -887,9 +887,27 @@ class AppState extends ChangeNotifier {
     return false;
   }
 
-  int get localPriceInt => isKppTrip
-      ? settings.kppPrice
-      : isFarTrip ? settings.farPrice : settings.localPrice;
+  /// Своя цена места (поле «Цена поездки сюда» в админке), если подача или назначение ближе 500 м к нему.
+  int? get placePrice {
+    final to = destPoint;
+    if (to == null) return null;
+    final d = Distance();
+    int? best;
+    for (final p in places) {
+      final price = p.price;
+      if (price == null) continue;
+      if (d(to, p.point) < 500 || d(pickup, p.point) < 500) {
+        if (best == null || price > best) best = price;
+      }
+    }
+    return best;
+  }
+
+  int get localPriceInt =>
+      placePrice ??
+      (isKppTrip
+          ? settings.kppPrice
+          : isFarTrip ? settings.farPrice : settings.localPrice);
 
   String get tariffPrice => formatPrice(tariffPriceInt);
 
