@@ -4,7 +4,7 @@ import 'i18n.dart';
 import 'services/open_link.dart';
 
 /// Документы лежат на сайте: папка legal/ в репозитории копируется туда при сборке.
-const kLegalBase = 'https://qazgroupkz-netizen.github.io/dostyq-taxi/legal/';
+const kLegalBase = 'https://alakoltaxi.kz/legal/';
 
 enum LegalDoc { privacy, terms, driverOffer }
 

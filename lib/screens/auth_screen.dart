@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../config.dart';
+import '../data/auth.dart';
 import '../i18n.dart';
 import '../legal.dart';
 import '../state.dart';
 import '../theme.dart';
 import '../widgets/ornament_icon.dart';
-import '../services/phone_auth.dart' as phone_web;
 
 class AuthScreen extends StatefulWidget {
   final bool nameOnly;
@@ -27,9 +24,6 @@ class _AuthScreenState extends State<AuthScreen> {
   late bool _nameStep = widget.nameOnly;
   bool _loading   = false;
   String? _error;
-
-  String? _verificationId;
-  ConfirmationResult? _webResult;
 
   @override
   void dispose() {
@@ -50,30 +44,10 @@ class _AuthScreenState extends State<AuthScreen> {
     }
     setState(() { _loading = true; _error = null; });
     try {
-      if (kIsWeb) {
-        _webResult = await phone_web.signInWithPhone(_fullPhone);
-        if (mounted) setState(() { _codeSent = true; _loading = false; });
-      } else {
-        await FirebaseAuth.instance.verifyPhoneNumber(
-          phoneNumber: _fullPhone,
-          timeout: const Duration(seconds: 60),
-          verificationCompleted: (cred) async {
-            final uc = await FirebaseAuth.instance.signInWithCredential(cred);
-            await _afterLogin(uc.user);
-          },
-          verificationFailed: (e) {
-            if (mounted) setState(() {
-              _error = _errMsg(e.code);
-              _loading = false;
-            });
-          },
-          codeSent: (vid, _) {
-            _verificationId = vid;
-            if (mounted) setState(() { _codeSent = true; _loading = false; });
-          },
-          codeAutoRetrievalTimeout: (_) {},
-        );
-      }
+      await authRepo.sendCode(_fullPhone);
+      if (mounted) setState(() { _codeSent = true; _loading = false; });
+    } on AuthError catch (e) {
+      if (mounted) setState(() { _error = _errMsg(e.code); _loading = false; });
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
     }
@@ -85,32 +59,14 @@ class _AuthScreenState extends State<AuthScreen> {
       return;
     }
     setState(() { _loading = true; _error = null; });
+    // После входа приложение само покажет шаг «имя», если профиля ещё нет (main.dart).
     try {
-      UserCredential uc;
-      if (kIsWeb) {
-        uc = await _webResult!.confirm(_codeCtrl.text.trim());
-      } else {
-        final cred = PhoneAuthProvider.credential(
-          verificationId: _verificationId!,
-          smsCode: _codeCtrl.text.trim(),
-        );
-        uc = await FirebaseAuth.instance.signInWithCredential(cred);
-      }
-      await _afterLogin(uc.user);
+      await authRepo.verifyCode(_codeCtrl.text.trim());
     } catch (_) {
       if (mounted) setState(() {
         _error = tr('Неверный код. Попробуйте ещё раз.');
         _loading = false;
       });
-    }
-  }
-
-  Future<void> _afterLogin(User? user) async {
-    if (user == null) return;
-    final snap = await FirebaseFirestore.instance
-        .collection('users').doc(user.uid).get();
-    if (!snap.exists) {
-      if (mounted) setState(() { _nameStep = true; _loading = false; });
     }
   }
 
@@ -120,15 +76,12 @@ class _AuthScreenState extends State<AuthScreen> {
       return;
     }
     setState(() { _loading = true; _error = null; });
-    final user = FirebaseAuth.instance.currentUser;
+    final user = authRepo.current;
     if (user == null) return;
     try {
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'name': _nameCtrl.text.trim(),
-        'phone': user.phoneNumber ?? _fullPhone,
-        'role': 'client',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      await authRepo.createProfile(user.uid,
+          name: _nameCtrl.text.trim(),
+          phone: user.phone.isNotEmpty ? user.phone : _fullPhone);
     } catch (e) {
       if (mounted) setState(() { _error = trf('Не удалось сохранить: {e}', {'e': e}); _loading = false; });
       return;
@@ -140,7 +93,8 @@ class _AuthScreenState extends State<AuthScreen> {
     switch (code) {
       case 'invalid-phone-number':       return tr('Неверный формат номера');
       case 'too-many-requests':          return tr('Слишком много попыток. Попробуйте позже.');
-      case 'invalid-verification-code':  return tr('Неверный код');
+      case 'invalid-verification-code':
+      case 'invalid-code':               return tr('Неверный код');
       default:                           return trf('Ошибка ({code})', {'code': code});
     }
   }

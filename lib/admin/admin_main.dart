@@ -1,9 +1,10 @@
 import 'dart:async';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../data/auth.dart';
 import '../data/drivers.dart';
+import '../data/supabase/sb_client.dart';
 import '../data/orders.dart';
 import '../firebase_options.dart';
 import '../services/sound.dart';
@@ -23,7 +24,11 @@ import 'tariffs_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  if (kUseSupabase) {
+    await initSupabase();
+  } else {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  }
   runApp(ChangeNotifierProvider(
     create: (_) => AppState(),
     child: const AdminApp(),
@@ -35,9 +40,14 @@ class AdminApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final authReady = context.select<AppState, bool>((s) => s.authReady);
+    final signedIn = context.select<AppState, bool>((s) => s.uid != null);
     final profileLoaded = context.select<AppState, bool>((s) => s.profileLoaded);
     final hasName = context.select<AppState, bool>((s) => s.userName.isNotEmpty);
     final isAdmin = context.select<AppState, bool>((s) => s.isAdmin);
+    const loading = Scaffold(
+      body: Center(child: CircularProgressIndicator(color: Color(0xFF111317))),
+    );
     return MaterialApp(
       title: '$kBrand · Админ',
       debugShowCheckedModeBanner: false,
@@ -46,20 +56,17 @@ class AdminApp extends StatelessWidget {
         onPointerDown: (_) => unlockSound(),
         child: child,
       ),
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snap) {
-          const loading = Scaffold(
-            body: Center(child: CircularProgressIndicator(color: Color(0xFF111317))),
-          );
-          if (snap.connectionState == ConnectionState.waiting) return loading;
-          if (snap.data == null) return const AuthScreen();
-          if (!profileLoaded) return loading;
-          if (!hasName) return const AuthScreen(nameOnly: true);
-          if (!isAdmin) return const _NoAccess();
-          return const AdminHome();
-        },
-      ),
+      home: !authReady
+          ? loading
+          : !signedIn
+              ? const AuthScreen()
+              : !profileLoaded
+                  ? loading
+                  : !hasName
+                      ? const AuthScreen(key: ValueKey('name'), nameOnly: true)
+                      : !isAdmin
+                          ? const _NoAccess()
+                          : const AdminHome(),
     );
   }
 }
@@ -69,7 +76,7 @@ class _NoAccess extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = authRepo.current;
     return Scaffold(
       backgroundColor: context.bg,
       body: Center(
@@ -89,9 +96,10 @@ class _NoAccess extends StatelessWidget {
                     )),
                 const SizedBox(height: 8),
                 Text(
-                  'Этот номер (${user?.phoneNumber ?? ''}) — обычный клиент. '
+                  'Этот номер (${user?.phone ?? ''}) — обычный клиент. '
                   'Админ должен поставить ему роль «admin» в базе: '
-                  'Firestore → users → документ этого пользователя → поле role.',
+                  '${kUseSupabase ? 'таблица profiles' : 'Firestore → users'} → '
+                  'запись этого пользователя → поле role.',
                   style: TextStyle(color: context.muted, fontSize: 15, height: 1.5),
                 ),
                 const SizedBox(height: 8),
@@ -106,7 +114,7 @@ class _NoAccess extends StatelessWidget {
                     ),
                     const SizedBox(width: 10),
                     TextButton(
-                      onPressed: () => FirebaseAuth.instance.signOut(),
+                      onPressed: () => authRepo.signOut(),
                       child: const Text('Выйти'),
                     ),
                   ],
@@ -353,7 +361,7 @@ class _Sidebar extends StatelessWidget {
                   IconButton(
                     tooltip: 'Выйти',
                     icon: const Icon(Icons.logout_rounded, color: AdminC.sideText, size: 20),
-                    onPressed: () => FirebaseAuth.instance.signOut(),
+                    onPressed: () => authRepo.signOut(),
                   ),
                 ],
               ),

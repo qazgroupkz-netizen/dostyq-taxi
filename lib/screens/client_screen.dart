@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../data/auth.dart';
 import 'dart:async';
 import '../data/orders.dart';
 import '../data/places.dart';
@@ -1929,7 +1929,7 @@ class _SideDrawer extends StatelessWidget {
                             color: Color(0xFFF2F4F7),
                             fontSize: 17, fontWeight: FontWeight.w700,
                           )),
-                      Text(FirebaseAuth.instance.currentUser?.phoneNumber ?? '',
+                      Text(authRepo.current?.phone ?? '',
                           style: const TextStyle(
                             color: Color(0xFFA3ABB6), fontSize: 13)),
                     ],
@@ -1998,7 +1998,7 @@ class _SideDrawer extends StatelessWidget {
                   label: tr('Выйти'),
                   onTap: () {
                     onClose();
-                    FirebaseAuth.instance.signOut();
+                    authRepo.signOut();
                   },
                 ),
               ],

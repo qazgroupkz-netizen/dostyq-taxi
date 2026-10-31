@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import '../data/auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../data/regions.dart';
@@ -178,7 +178,7 @@ class _TripScreenState extends State<TripScreen> {
 TripBooking _me(AppState state) => TripBooking(
       clientId: state.uid ?? '',
       name: state.userName,
-      phone: FirebaseAuth.instance.currentUser?.phoneNumber ?? '',
+      phone: authRepo.current?.phone ?? '',
     );
 
 class _TripCard extends StatelessWidget {

@@ -23,6 +23,8 @@ dependencies:
   http: ^1.2.2
   image_picker: ^1.1.2
   shared_preferences: ^2.3.2
+  # 2.13.x — последняя ветка для Dart 3.5 (Flutter 3.24 в CI); 2.14+ требует Dart 3.9.
+  supabase: 2.13.4
 
 # 4.6.2 требует Flutter 3.27+ (flutter.compileSdkVersion в плагине), в CI стоит 3.24.
 dependency_overrides:

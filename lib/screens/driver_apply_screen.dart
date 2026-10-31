@@ -1,5 +1,5 @@
 import 'dart:typed_data';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../data/auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -140,7 +140,7 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
       await state.drivers.submit(
         uid: uid,
         name: _name.text.trim(),
-        phone: FirebaseAuth.instance.currentUser?.phoneNumber ?? '',
+        phone: authRepo.current?.phone ?? '',
         carModel: _model.text.trim(),
         carColor: _color.text.trim(),
         plate: _plate.text.trim().toUpperCase(),

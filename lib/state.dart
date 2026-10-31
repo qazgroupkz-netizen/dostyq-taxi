@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:latlong2/latlong.dart';
+import 'config.dart';
+import 'data/auth.dart';
 import 'data/catalog.dart';
 import 'data/drivers.dart';
 import 'data/orders.dart';
@@ -10,6 +11,10 @@ import 'data/regions.dart';
 import 'data/settings.dart';
 import 'data/streets.dart';
 import 'data/trips.dart';
+import 'data/supabase/sb_catalog.dart';
+import 'data/supabase/sb_drivers.dart';
+import 'data/supabase/sb_orders.dart';
+import 'data/supabase/sb_trips.dart';
 import 'i18n.dart';
 import 'services/geo_api.dart';
 import 'services/location.dart';
@@ -26,11 +31,12 @@ class AppState extends ChangeNotifier {
     CatalogRepository? catalog,
     DriverRepository? drivers,
     TripRepository? trips,
-  })  : orders = orders ?? FirestoreOrderRepository(),
-        catalog = catalog ?? FirestoreCatalogRepository(),
-        drivers = drivers ?? FirestoreDriverRepository(),
-        trips = trips ?? FirestoreTripRepository() {
-    _authSub = FirebaseAuth.instance.authStateChanges().listen((u) {
+  })  : orders = orders ?? (kUseSupabase ? SupabaseOrderRepository() : FirestoreOrderRepository()),
+        catalog = catalog ?? (kUseSupabase ? SupabaseCatalogRepository() : FirestoreCatalogRepository()),
+        drivers = drivers ?? (kUseSupabase ? SupabaseDriverRepository() : FirestoreDriverRepository()),
+        trips = trips ?? (kUseSupabase ? SupabaseTripRepository() : FirestoreTripRepository()) {
+    _authSub = authRepo.changes().listen((u) {
+      authReady = true;
       uid = u?.uid;
       userName = '';
       role = 'client';
@@ -145,7 +151,10 @@ class AppState extends ChangeNotifier {
   StreamSubscription<DriverProfile>? _myDriverSub;
 
   bool get driverCanWork => myDriver?.canWork ?? false;
-  StreamSubscription<User?>? _authSub;
+  StreamSubscription<AuthUser?>? _authSub;
+
+  /// Уже известно, вошёл ли пользователь (до этого — экран загрузки).
+  bool authReady = false;
   String? uid;
   String userName = '';
   String role = 'client';
@@ -487,7 +496,7 @@ class AppState extends ChangeNotifier {
         tariff: tariff.name,
         price: tariff == Tariff.cargo ? (orderClientPrice ?? 0) : tariffPriceInt,
         payment: paymentMethod,
-        clientPhone: FirebaseAuth.instance.currentUser?.phoneNumber ?? '',
+        clientPhone: authRepo.current?.phone ?? '',
         comment: orderComment,
         clientPrice: tariff == Tariff.cargo ? orderClientPrice : null,
       );

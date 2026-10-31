@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import '../data/auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../data/trips.dart';
@@ -106,7 +106,7 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
       id: '',
       driverId: state.uid ?? '',
       driverName: (d?.name.isNotEmpty ?? false) ? d!.name : state.userName,
-      driverPhone: FirebaseAuth.instance.currentUser?.phoneNumber ?? '',
+      driverPhone: authRepo.current?.phone ?? '',
       car: d?.car ?? '',
       plate: d?.plate ?? '',
       from: state.regionId,
