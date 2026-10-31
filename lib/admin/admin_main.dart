@@ -22,6 +22,7 @@ import 'migrate_page.dart';
 import 'orders_page.dart';
 import 'places_page.dart';
 import 'regions_page.dart';
+import 'staff_page.dart';
 import 'streets_page.dart';
 import 'tariffs_page.dart';
 
@@ -100,9 +101,8 @@ class _NoAccess extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   'Этот номер (${user?.phone ?? ''}) — обычный клиент. '
-                  'Админ должен поставить ему роль «admin» в базе: '
-                  '${kUseSupabase ? 'таблица profiles' : 'Firestore → users'} → '
-                  'запись этого пользователя → поле role.',
+                  'Попросите админа добавить его в «Настройки → Сотрудники», '
+                  'затем нажмите «Проверить снова».',
                   style: TextStyle(color: context.muted, fontSize: 15, height: 1.5),
                 ),
                 const SizedBox(height: 8),
@@ -166,6 +166,8 @@ class _AdminHomeState extends State<AdminHome> {
         page: TariffsPage(), ownerOnly: true),
     (group: 'Настройки', icon: Icons.location_city_rounded, label: 'Районы',
         page: RegionsPage(), ownerOnly: true),
+    (group: 'Настройки', icon: Icons.badge_outlined, label: 'Сотрудники',
+        page: const StaffPage(), ownerOnly: true),
     // Перенос справочников в свою базу — только в админке на Firebase.
     if (!kUseSupabase)
       (group: 'Настройки', icon: Icons.cloud_upload_outlined, label: 'Перенос в новую базу',
@@ -406,13 +408,13 @@ class _Sidebar extends StatelessWidget {
                     child: const Icon(Icons.local_taxi_rounded, color: AdminC.ink, size: 22),
                   ),
                   const SizedBox(width: 10),
-                  const Column(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(kBrand,
+                      const Text(kBrand,
                           style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
-                      Text('Админ-панель',
-                          style: TextStyle(color: AdminC.sideMuted, fontSize: 12, fontWeight: FontWeight.w600)),
+                      Text(pages.any((p) => p.ownerOnly) ? 'Админ-панель' : 'Окно менеджера',
+                          style: const TextStyle(color: AdminC.sideMuted, fontSize: 12, fontWeight: FontWeight.w600)),
                     ],
                   ),
                 ],
