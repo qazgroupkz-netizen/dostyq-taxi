@@ -145,6 +145,7 @@ jobs:
         run: |
           flutter build web --release --base-href /dostyq-taxi/ --web-renderer canvaskit --pwa-strategy none
           mv build/admin_web build/web/admin
+          cp -r legal build/web/legal
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3

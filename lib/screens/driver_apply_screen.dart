@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../data/drivers.dart';
 import '../config.dart';
 import '../i18n.dart';
+import '../legal.dart';
 import '../state.dart';
 import '../theme.dart';
 
@@ -466,6 +467,10 @@ class _DriverApplyScreenState extends State<DriverApplyScreen> {
           onChanged: (v) => setState(() => _offer = v ?? false),
           title: Text(tr('Принимаю условия публичной оферты для водителей')),
         ),
+        const Wrap(spacing: 16, children: [
+          LegalLink(LegalDoc.driverOffer, fontSize: 14),
+          LegalLink(LegalDoc.privacy, fontSize: 14),
+        ]),
       ],
     );
   }

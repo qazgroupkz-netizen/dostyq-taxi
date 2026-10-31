@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../config.dart';
 import '../i18n.dart';
+import '../legal.dart';
 import '../state.dart';
 import '../theme.dart';
 import '../widgets/ornament_icon.dart';
@@ -245,6 +246,11 @@ class _AuthScreenState extends State<AuthScreen> {
                   'и даёте согласие на обработку персональных данных.'),
               style: TextStyle(color: context.muted, fontSize: 12, height: 1.5),
             ),
+            const SizedBox(height: 4),
+            const Wrap(spacing: 16, children: [
+              LegalLink(LegalDoc.terms),
+              LegalLink(LegalDoc.privacy),
+            ]),
           ],
         ),
       ),
