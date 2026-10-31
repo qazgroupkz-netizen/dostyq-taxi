@@ -16,6 +16,7 @@ import 'admin_ui.dart';
 import 'analytics_page.dart';
 import 'dispatch_page.dart';
 import 'drivers_page.dart';
+import 'finance_page.dart';
 import 'intercity_page.dart';
 import 'migrate_page.dart';
 import 'orders_page.dart';
@@ -147,6 +148,8 @@ class _AdminHomeState extends State<AdminHome> {
   static final _all = <_Nav>[
     (group: 'Обзор', icon: Icons.bar_chart_rounded, label: 'Аналитика',
         page: const AnalyticsPage(), ownerOnly: true),
+    (group: 'Обзор', icon: Icons.attach_money_rounded, label: 'Финансы',
+        page: const FinancePage(), ownerOnly: true),
     (group: 'Оперативно', icon: Icons.headset_mic_outlined, label: 'Диспетчерская',
         page: const DispatchPage(), ownerOnly: false),
     (group: 'Оперативно', icon: Icons.format_list_bulleted_rounded, label: 'Заказы',
