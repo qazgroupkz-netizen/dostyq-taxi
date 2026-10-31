@@ -12,6 +12,7 @@ import '../config.dart';
 import '../i18n.dart';
 import '../data/places.dart';
 import '../widgets/taxi_map.dart';
+import '../widgets/report_sheet.dart';
 
 // ════════════════════════════════════════════════════════════════
 //  Экран водителя (всегда тёмная тема)
@@ -1158,6 +1159,13 @@ class _ActiveRideCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          Center(
+            child: TextButton(
+              onPressed: () => showComplaintSheet(context, fromDriver: true, order: order),
+              child: Text(tr('Пожаловаться на клиента'),
+                  style: const TextStyle(color: Color(0xFFA3ABB6), fontSize: 14, fontWeight: FontWeight.w600)),
+            ),
           ),
         ],
       ),

@@ -13,6 +13,7 @@ import 'package:latlong2/latlong.dart' show Distance, LatLng;
 import '../widgets/ornament_icon.dart';
 import '../widgets/taxi_map.dart';
 import '../widgets/car_svgs.dart';
+import '../widgets/report_sheet.dart';
 import '../data/drivers.dart';
 import 'driver_apply_screen.dart';
 import 'search_screen.dart';
@@ -1258,7 +1259,7 @@ class _RidePanelState extends State<_RidePanel> {
               _IconAction(icon: Icons.add_circle_outline, label: tr('Остановка')),
               const SizedBox(width: 8),
               _IconAction(icon: Icons.shield_outlined, label: tr('Помощь'),
-                  isRed: true),
+                  isRed: true, onTap: () => showSosSheet(context)),
             ],
           ),
         ),
@@ -1368,6 +1369,11 @@ class _RatePanelState extends State<_RatePanel> {
             enabled: _stars > 0,
             onTap: () => state.finishRating(_stars),
           ),
+        ),
+        TextButton(
+          onPressed: () => showComplaintSheet(context, fromDriver: false, order: state.activeOrder),
+          child: Text(tr('Пожаловаться'),
+              style: TextStyle(color: context.danger, fontSize: 15, fontWeight: FontWeight.w600)),
         ),
       ],
     );

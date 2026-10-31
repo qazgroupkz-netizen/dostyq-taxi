@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../data/auth.dart';
 import '../data/drivers.dart';
+import '../data/incidents.dart';
 import '../data/supabase/sb_client.dart';
 import '../data/orders.dart';
 import '../firebase_options.dart';
@@ -14,9 +15,11 @@ import '../state.dart';
 import '../theme.dart';
 import 'admin_ui.dart';
 import 'analytics_page.dart';
+import 'applications_page.dart';
 import 'dispatch_page.dart';
 import 'drivers_page.dart';
 import 'finance_page.dart';
+import 'incidents_page.dart';
 import 'intercity_page.dart';
 import 'migrate_page.dart';
 import 'orders_page.dart';
@@ -156,8 +159,12 @@ class _AdminHomeState extends State<AdminHome> {
         page: const OrdersPage(), ownerOnly: false),
     (group: 'Оперативно', icon: Icons.domain_rounded, label: 'Межгород',
         page: const IntercityPage(), ownerOnly: false),
+    (group: 'Оперативно', icon: Icons.shield_outlined, label: 'SOS и жалобы',
+        page: const IncidentsPage(), ownerOnly: false),
     (group: 'Водители', icon: Icons.group_outlined, label: 'Водители',
         page: const DriversPage(), ownerOnly: true),
+    (group: 'Водители', icon: Icons.fact_check_outlined, label: 'Проверка анкет',
+        page: const ApplicationsPage(), ownerOnly: true),
     (group: 'Настройки', icon: Icons.place_outlined, label: 'Адреса',
         page: PlacesPage(), ownerOnly: true),
     (group: 'Настройки', icon: Icons.signpost_outlined, label: 'Улицы',
@@ -176,7 +183,11 @@ class _AdminHomeState extends State<AdminHome> {
 
   late final Stream<List<DriverProfile>> _drivers = context.read<AppState>().drivers.watchAll();
   Stream<List<TaxiOrder>>? _orders;
+  Stream<List<Incident>>? _incidents;
   String? _region;
+
+  /// Владелец смотрит админку глазами менеджера.
+  bool _asManager = false;
 
   @override
   void initState() {
@@ -199,9 +210,10 @@ class _AdminHomeState extends State<AdminHome> {
     if (_region != state.regionId) {
       _region = state.regionId;
       _orders = state.orders.watchRegion(state.regionId);
+      _incidents = state.incidents.watchRegion(state.regionId);
     }
     final wide = MediaQuery.of(context).size.width >= 900;
-    final isOwner = state.role == 'admin';
+    final isOwner = state.role == 'admin' && !_asManager;
     final pages = [for (final p in _all) if (isOwner || !p.ownerOnly) p];
     if (_page >= pages.length) _page = 0;
 
@@ -209,13 +221,16 @@ class _AdminHomeState extends State<AdminHome> {
       stream: _drivers,
       builder: (context, dSnap) => StreamBuilder<List<TaxiOrder>>(
         stream: _orders,
-        builder: (context, oSnap) {
+        builder: (context, oSnap) => StreamBuilder<List<Incident>>(
+        stream: _incidents,
+        builder: (context, iSnap) {
           final pending = (dSnap.data ?? const <DriverProfile>[])
               .where((d) => d.region == state.regionId && d.approval == Approval.pending)
               .length;
           final waiting =
               (oSnap.data ?? const <TaxiOrder>[]).where((o) => o.status == 'searching').length;
-          final counts = {'Диспетчерская': waiting, 'Водители': pending};
+          final open = (iSnap.data ?? const <Incident>[]).where((i) => !i.resolved && i.kind != 'review').length;
+          final counts = {'Диспетчерская': waiting, 'Проверка анкет': pending, 'SOS и жалобы': open};
           void go(String label) {
             final i = pages.indexWhere((p) => p.label == label);
             if (i >= 0) setState(() => _page = i);
@@ -238,12 +253,21 @@ class _AdminHomeState extends State<AdminHome> {
             children: [
               _Header(
                 wide: wide,
-                alerts: waiting + pending,
+                alerts: waiting + pending + open,
+                ownerView: state.role == 'admin' ? !_asManager : null,
+                onView: (owner) => setState(() {
+                  _asManager = !owner;
+                  _page = 0;
+                }),
                 onSearch: (q) {
                   adminSearch.value = q;
                   go('Заказы');
                 },
-                onBell: () => go(waiting > 0 || pending == 0 ? 'Диспетчерская' : 'Водители'),
+                onBell: () => go(open > 0
+                    ? 'SOS и жалобы'
+                    : waiting > 0 || pending == 0
+                        ? 'Диспетчерская'
+                        : 'Проверка анкет'),
               ),
               Expanded(child: pages[_page].page),
             ],
@@ -261,6 +285,7 @@ class _AdminHomeState extends State<AdminHome> {
             body: content,
           );
         },
+        ),
       ),
     );
   }
@@ -457,7 +482,49 @@ class _Header extends StatelessWidget {
   final int alerts;
   final ValueChanged<String> onSearch;
   final VoidCallback onBell;
-  const _Header({required this.wide, required this.alerts, required this.onSearch, required this.onBell});
+
+  /// Переключатель «Владелец / Менеджер» — только у админа (null — не показывать).
+  final bool? ownerView;
+  final ValueChanged<bool> onView;
+  const _Header({
+    required this.wide,
+    required this.alerts,
+    required this.onSearch,
+    required this.onBell,
+    required this.ownerView,
+    required this.onView,
+  });
+
+  Widget _viewSwitch(BuildContext context, bool owner) => Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: context.paper,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: context.lineC),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final o in [true, false])
+              Material(
+                color: o == owner ? AdminC.ink : Colors.transparent,
+                borderRadius: BorderRadius.circular(9),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(9),
+                  onTap: () => onView(o),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Text(o ? 'Владелец' : 'Менеджер',
+                        style: TextStyle(
+                          color: o == owner ? Colors.white : context.muted,
+                          fontSize: 13, fontWeight: FontWeight.w700,
+                        )),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
 
   Widget _bell(BuildContext context) => Material(
         color: context.paper,
@@ -573,6 +640,10 @@ class _Header extends StatelessWidget {
               const SizedBox(width: 12),
             ],
             _bell(context),
+            if (ownerView != null && wide) ...[
+              const SizedBox(width: 12),
+              _viewSwitch(context, ownerView!),
+            ],
             const SizedBox(width: 12),
             Container(
               width: 42, height: 42,

@@ -32,35 +32,11 @@ class _DriversPageState extends State<DriversPage> {
           return Center(child: Text('Не удалось загрузить водителей: ${snap.error}'));
         }
         if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-        final inRegion = snap.data!.where((d) => d.region == state.regionId).toList();
-        final pending = inRegion.where((d) => d.approval == Approval.pending).toList();
-        final others = inRegion.where((d) => d.approval != Approval.pending).toList();
-        return DefaultTabController(
-          length: 2,
-          child: Column(
-            children: [
-              Material(
-                color: context.paper,
-                child: TabBar(
-                  labelColor: context.accent,
-                  indicatorColor: context.taxi,
-                  tabs: [
-                    Tab(text: 'Анкеты (${pending.length})'),
-                    Tab(text: 'Водители (${others.length})'),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: TabBarView(
-                  children: [
-                    _list(context, pending, 'Новых анкет нет'),
-                    _list(context, others, 'Водителей пока нет'),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
+        // Новые анкеты — в разделе «Проверка анкет».
+        final others = snap.data!
+            .where((d) => d.region == state.regionId && d.approval != Approval.pending)
+            .toList();
+        return _list(context, others, 'Водителей пока нет');
       },
     );
   }

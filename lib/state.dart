@@ -5,6 +5,7 @@ import 'config.dart';
 import 'data/auth.dart';
 import 'data/catalog.dart';
 import 'data/drivers.dart';
+import 'data/incidents.dart';
 import 'data/orders.dart';
 import 'data/places.dart';
 import 'data/regions.dart';
@@ -13,6 +14,7 @@ import 'data/streets.dart';
 import 'data/trips.dart';
 import 'data/supabase/sb_catalog.dart';
 import 'data/supabase/sb_drivers.dart';
+import 'data/supabase/sb_incidents.dart';
 import 'data/supabase/sb_orders.dart';
 import 'data/supabase/sb_trips.dart';
 import 'i18n.dart';
@@ -31,7 +33,9 @@ class AppState extends ChangeNotifier {
     CatalogRepository? catalog,
     DriverRepository? drivers,
     TripRepository? trips,
-  })  : orders = orders ?? (kUseSupabase ? SupabaseOrderRepository() : FirestoreOrderRepository()),
+    IncidentRepository? incidents,
+  })  : incidents = incidents ?? (kUseSupabase ? SupabaseIncidentRepository() : FirestoreIncidentRepository()),
+        orders = orders ?? (kUseSupabase ? SupabaseOrderRepository() : FirestoreOrderRepository()),
         catalog = catalog ?? (kUseSupabase ? SupabaseCatalogRepository() : FirestoreCatalogRepository()),
         drivers = drivers ?? (kUseSupabase ? SupabaseDriverRepository() : FirestoreDriverRepository()),
         trips = trips ?? (kUseSupabase ? SupabaseTripRepository() : FirestoreTripRepository()) {
@@ -145,6 +149,11 @@ class AppState extends ChangeNotifier {
   final CatalogRepository catalog;
   final DriverRepository drivers;
   final TripRepository trips;
+  final IncidentRepository incidents;
+
+  /// SOS или жалоба по текущему заказу — уходит в админку («SOS и жалобы»).
+  Future<void> reportIncident(String kind, String title, {String body = '', String? orderId}) =>
+      incidents.report(region: regionId, kind: kind, title: title, body: body, orderId: orderId);
 
   /// Анкета водителя этого пользователя (пустая, если не подавал).
   DriverProfile? myDriver;
