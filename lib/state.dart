@@ -304,7 +304,7 @@ class AppState extends ChangeNotifier {
   Future<(String, String?)> _addressFor(LatLng p) async {
     final addr = await GeoApi.reverse(p);
     final near = nearestPlace(p, places)?.name;
-    return (addr ?? 'Точка на карте', near);
+    return (addr ?? tr('Точка на карте'), near);
   }
 
   Future<void> resolvePickupAddress() async {
@@ -417,7 +417,7 @@ class AppState extends ChangeNotifier {
     final p = pickPoint;
     final mode = pickMode;
     if (p == null || mode == null) return;
-    final label = pickAddress ?? 'Точка на карте';
+    final label = pickAddress ?? tr('Точка на карте');
     pickMode = null;
     _pickReq++;
     if (mode == 'to') {

@@ -16,6 +16,7 @@ import 'analytics_page.dart';
 import 'dispatch_page.dart';
 import 'drivers_page.dart';
 import 'intercity_page.dart';
+import 'migrate_page.dart';
 import 'orders_page.dart';
 import 'places_page.dart';
 import 'regions_page.dart';
@@ -141,7 +142,7 @@ class _AdminHomeState extends State<AdminHome> {
   int _page = 0;
   Timer? _clock;
 
-  static const _all = <_Nav>[
+  static final _all = <_Nav>[
     (group: 'Оперативно', icon: Icons.headset_mic_outlined, label: 'Диспетчерская',
         page: DispatchPage(), ownerOnly: false),
     (group: 'Оперативно', icon: Icons.format_list_bulleted_rounded, label: 'Заказы',
@@ -160,6 +161,10 @@ class _AdminHomeState extends State<AdminHome> {
         page: TariffsPage(), ownerOnly: true),
     (group: 'Настройки', icon: Icons.location_city_rounded, label: 'Районы',
         page: RegionsPage(), ownerOnly: true),
+    // Перенос справочников в свою базу — только в админке на Firebase.
+    if (!kUseSupabase)
+      (group: 'Настройки', icon: Icons.cloud_upload_outlined, label: 'Перенос в новую базу',
+          page: const MigratePage(), ownerOnly: true),
   ];
 
   late final Stream<List<DriverProfile>> _drivers = context.read<AppState>().drivers.watchAll();

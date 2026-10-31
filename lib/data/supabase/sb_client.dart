@@ -4,11 +4,15 @@ import 'package:supabase/supabase.dart';
 import '../../config.dart';
 
 late final SupabaseClient sb;
+bool _ready = false;
 
 const _sessionKey = 'sb_session';
 
 /// Подключение к своей базе. Вход хранится на устройстве, чтобы не спрашивать код каждый раз.
+/// Повторный вызов ничего не делает (страница переноса в Firebase-админке зовёт его сама).
 Future<void> initSupabase() async {
+  if (_ready) return;
+  _ready = true;
   sb = SupabaseClient(
     kSupabaseUrl,
     kSupabaseAnonKey,
